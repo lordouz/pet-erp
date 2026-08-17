@@ -39,10 +39,8 @@ def toplam_hammadde_stok():
     df = pd.DataFrame(st.session_state.hammadde_depo)
     if df.empty: 
         return {h: 0.0 for h in ["PTA", "MEG", "Antimon", "Fosforik Asit", "Mavi Boya", "Kırmızı Boya", "IPA", "DEG"]}
-    
-    # Mevcut tüm hammaddelerin gruplanmış toplamını sözlük olarak alıyoruz
-    grup_toplamları = df.groupby("Hammadde")["Miktar (Ton)"].sum().to_dict()
-    return grup_toplamları
+    grup_toplamlari = df.groupby("Hammadde")["Miktar (Ton)"].sum().to_dict()
+    return grup_toplamlari
 
 def toplam_mamul_stok():
     df = pd.DataFrame(st.session_state.mamul_depo)
@@ -71,14 +69,14 @@ if sayfa == "📊 Genel Depo & Stok Durumu":
     
     st.subheader("💡 Kritik Hammadde Stok Özetleri")
     
-    # 1. Satır Stok Özetleri (Ana Maddeler)
+    # 1. Satır Stok Özetleri
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("PTA Stoku", f"{h_stok.get('PTA', 0.0):.2f} Ton")
     col2.metric("MEG Stoku", f"{h_stok.get('MEG', 0.0):.2f} Ton")
     col3.metric("Antimon Stoku", f"{h_stok.get('Antimon', 0.0):.2f} Ton")
     col4.metric("Fosforik Asit Stoku", f"{h_stok.get('Fosforik Asit', 0.0):.2f} Ton")
     
-    # 2. Satır Stok Özetleri (Yardımcı Maddeler ve Boyalar)
+    # 2. Satır Stok Özetleri
     col5, col6, col7, col8 = st.columns(4)
     col5.metric("Mavi Boya", f"{h_stok.get('Mavi Boya', 0.0):.2f} Ton")
     col6.metric("Kırmızı Boya", f"{h_stok.get('Kırmızı Boya', 0.0):.2f} Ton")
@@ -106,7 +104,6 @@ elif sayfa == "📥 1. Hammadde Giriş Sayfası":
     
     with st.form("hammadde_form"):
         g_tarih = st.date_input("Giriş Tarihi", value=datetime.now())
-        # Eklediğiniz yeni hammaddeler menüye entegre edildi
         h_turu = st.selectbox("Hammadde Türü", ["PTA", "MEG", "Antimon", "Fosforik Asit", "Mavi Boya", "Kırmızı Boya", "IPA", "DEG"])
         h_lot = st.text_input("Hammadde LOT Numarası (Örn: LOT-ANT-2026)")
         h_miktar = st.number_input("Gelen Miktar (Ton)", min_value=0.001, step=0.5, format="%.3f")
@@ -126,7 +123,6 @@ elif sayfa == "📥 1. Hammadde Giriş Sayfası":
 # ==========================================
 elif sayfa == "📝 2. Reçete Oluşturma Sayfası":
     st.header("📝 Yeni Ürün Reçetesi (BOM) Tanımlama")
-    st.info("💡 Not: Bir sonraki aşamada bu sayfaya yeni kimyasalların tüketim oranlarını da ekleyebiliriz.")
     
     with st.form("recete_form"):
         r_adi = st.text_input("Reçete / Ürün Adı", placeholder="Örn: Film Tipi PET Resin")
@@ -204,20 +200,10 @@ elif sayfa == "💰 4. Ürün Satış Sayfası":
     if not aktif_mamuller:
         st.info("Satış yapılabilecek hazır mamul ürünü bulunmamaktadır.")
     else:
-# ==========================================
-# SAYFA: ÜRÜN SATIŞI (MAMUL DÜŞÜŞÜ)
-# ==========================================
-elif sayfa == "💰 4. Ürün Satış Sayfası":
-    st.header("💰 Mamul Satış Girişi (Depodan Çıkış)")
-    
-    aktif_mamuller = [m for m in st.session_state.mamul_depo if m["Miktar (Ton)"] > 0]
-    
-    if not aktif_mamuller:
-        st.info("Satış yapılabilecek hazır mamul ürünü bulunmamaktadır.")
-    else:
         mamul_opsiyonlar = [f"{m['Üretim LOT']} - {m['Ürün']} (Kalan: {m['Miktar (Ton)']} Ton)" for m in aktif_mamuller]
         
         with st.form("satis_form"):
+            secilen_secenek = st.selectbox("Satılacak Ürün LOT'unu Seçin",         with st.form("satis_form"):
             secilen_secenek = st.selectbox("Satılacak Ürün LOT'unu Seçin", mamul_opsiyonlar)
             satis_miktari = st.number_input("Satılan Miktar (Ton)", min_value=0.1, step=1.0)
             musteri = st.text_input("Müşteri Firma Adı")

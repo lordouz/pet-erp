@@ -215,7 +215,7 @@ elif sayfa == "🏭 3. Üretim Emri & Giriş Sayfası":
     ])
     
     hedef_tur = "Ara Mamul Reçetesi" if "1)" in u_kategori else "Mamul Reçetesi"
-    uygun_receteler = [r for r in st.session_state.receteler if r.get("Tür") == target_tur or r.get("Tür") == hedef_tur]
+    uygun_receteler = [r for r in st.session_state.receteler if r.get("Tür")
     
     if not uygun_receteler:
         st.warning(f"⚠️ Bu kategoride kayıtlı bir reçete bulunamadı. Lütfen önce {hedef_tur} tanımlayın.")

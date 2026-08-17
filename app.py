@@ -6,7 +6,7 @@ import io
 # 1. SAYFA VE TASARIM AYARLARI
 st.set_page_config(page_title="PET Resin Komple ERP v2.6", layout="wide")
 
-# 2. MERKEZİ VERİ TABANI SİMÜLASYONU (Miktarlar KG olarak güncellendi)
+# 2. MERKEZİ VERİ TABANI SİMÜLASYONU
 if 'hammadde_depo' not in st.session_state:
     st.session_state.hammadde_depo = [
         {"Giriş Tarihi": "2026-08-15", "Hammadde": "PTA", "LOT No": "PTA-LOT-001", "Miktar (Kg)": 100000.0},
@@ -115,7 +115,6 @@ if sayfa == "📊 Genel Depo & Stok Durumu":
     st.header("📊 Fabrika Anlık Stok ve Depo Paneli (Kg)")
     
     h_stok = toplam_hammadde_stok()
-    m_stok = toplam_mamul_stok()
     
     st.subheader("💡 Kritik Hammadde Stok Özetleri")
     col1, col2, col3, col4 = st.columns(4)
@@ -131,9 +130,35 @@ if sayfa == "📊 Genel Depo & Stok Durumu":
     col8.metric("DEG Stoku", f"{h_stok.get('DEG', 0.0):,.1f} Kg")
     
     st.write("---")
-    mamul_toplam = sum(m_stok.values()) if m_stok else 0.0
-    st.metric("📦 Toplam Satışa Hazır Mamul (Ürün) Stoku", f"{mamul_toplam:,.1f} Kg")
     
+    # --- ÜRÜN BAZLI GRUPLANMIŞ MAMUL DEPOSU ALANI ---
+    st.subheader("📦 Ürün Bazlı Gruplanmış Satışa Hazır Mamul Stokları")
+    
+    if st.session_state.mamul_depo:
+        df_mamul = pd.DataFrame(st.session_state.mamul_depo)
+        urun_gruplari = df_mamul.groupby("Ürün")
+        
+        for urun_adi, urun_data in urun_gruplari:
+            toplam_urun_stok = urun_data["Miktar (Kg)"].sum()
+            benzersiz_lot_sayisi = urun_data["Üretim LOT / Silo"].nunique()
+            toplam_uretim_sayisi = len(urun_data)
+            
+            expander_basligi = f"🔹 {urun_adi}  |  Toplam Stok: {toplam_urun_stok:,.1f} Kg"
+            with st.expander(expander_basligi):
+                m1, m2, m3 = st.columns(3)
+                m1.metric("Toplam Stok", f"{toplam_urun_stok:,.1f} Kg")
+                m2.metric("Mevcut LOT Sayısı", f"{benzersiz_lot_sayisi} Adet")
+                m3.metric("Toplam Üretim Sayısı", f"{toplam_uretim_sayisi} Sefer")
+                
+                st.write("**Bu Ürüne Ait Detaylı LOT Giriş Tablosu:**")
+                st.dataframe(
+                    urun_data[["Üretim Tarihi", "Üretim LOT / Silo", "Miktar (Kg)"]].reset_index(drop=True),
+                    use_container_width=True
+                )
+    else:
+        st.info("Sistemde henüz üretilmiş bir mamul (ürün) stoku bulunmuyor. Üretim emri sayfasından üretim yapabilirsiniz.")
+        
+    st.write("---")
     st.subheader("📋 Fabrika Tek Parça Genel Stok ve Malzeme Dengesi Raporu")
     excel_data, df_ekran_rapor = tek_rapor_excel_olustur()
     st.dataframe(df_ekran_rapor, use_container_width=True)
@@ -146,15 +171,14 @@ if sayfa == "📊 Genel Depo & Stok Durumu":
     )
     
     st.write("---")
-    t1, t2 = st.tabs(["📋 Detaylı Hammadde Lot Giriş Listesi", "📦 Detaylı Mamul Depo Listesi"])
+    t1, t2 = st.tabs(["📋 Detaylı Hammadde Lot Giriş Listesi", "📦 Ham Mamul Depo Günlüğü"])
     with t1:
         st.dataframe(pd.DataFrame(st.session_state.hammadde_depo), use_container_width=True)
     with t2:
         if st.session_state.mamul_depo:
             st.dataframe(pd.DataFrame(st.session_state.mamul_depo), use_container_width=True)
         else:
-            st.info("Mamul deposu boş. Listenizi oluşturmak için lütfen önce üretim yapın.")
-
+            st.info("Mamul günlüğü henüz boş.")
 # ==========================================
 # SAYFA: HAMMADDE GİRİŞİ
 # ==========================================

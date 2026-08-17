@@ -21,7 +21,7 @@ if 'hammadde_depo' not in st.session_state:
 
 if 'hammadde_giren_toplam' not in st.session_state:
     st.session_state.hammadde_giren_toplam = {
-        "PTA": 100000.0, "MEG": 50000.0, "Antimon": 5000.0, "Fosforik Asit": 2000.0,
+        "PTA": 100000.0, "MEG": 50000.0 "Antimon": 5000.0, "Fosforik Asit": 2000.0,
         "Mavi Boya": 500.0, "Kırmızı Boya": 300.0, "IPA": 1500.0, "DEG": 4000.0
     }
 
@@ -131,7 +131,6 @@ if sayfa == "📊 Genel Depo & Stok Durumu":
     
     st.write("---")
     
-    # --- ÜRÜN BAZLI GRUPLANMIŞ MAMUL DEPOSU ALANI ---
     st.subheader("📦 Ürün Bazlı Gruplanmış Satışa Hazır Mamul Stokları")
     
     if st.session_state.mamul_depo:
@@ -252,7 +251,7 @@ elif sayfa == "📝 2. Reçete Oluşturma Sayfası":
         st.info("Sistemde henüz kayıtlı reçete bulunmamaktadır.")
 
 # ==========================================
-# SAYFA: ÜRETİM EMRİ & GİRİŞİ
+# SAYFA: ÜRETİM EMRİ & GİRİŞİ (FİİLİ TÜKETİM GÜNCELLEMESİ)
 # ==========================================
 elif sayfa == "🏭 3. Üretim Emri & Giriş Sayfası":
     st.header("🏭 Üretim Emri Oluşturma ve Reaktör Besleme")
@@ -262,40 +261,70 @@ elif sayfa == "🏭 3. Üretim Emri & Giriş Sayfası":
     else:
         h_stok = toplam_hammadde_stok()
         
+        # 1. Aşama: Reçete ve Hedef Miktar Seçimi (Form Dışında - Dinamik Alan Tetiklemesi İçin)
+        recete_secenekleri = [r["Reçete Adı"] for r in st.session_state.receteler]
+        secilen_recete_adi = st.selectbox("Üretilecek Ürün / Reçete Seçin", recete_secenekleri)
+        hedef_miktar = st.number_input("Hedef Üretim Miktarı (Kg)", min_value=1.0, value=1000.0, step=100.0, format="%.1f")
+        u_lot = st.text_input("Üretim Parti / Silo No", value=f"PET-LOT-{datetime.now().strftime('%Y%m%d%H%M')}")
+        
+        # Seçilen reçete verisini çekme
+        secilen_recete = next(r for r in st.session_state.receteler if r["Reçete Adı"] == secilen_recete_adi)
+        
+        st.write("---")
+        st.subheader("⚙️ Fiili Hammadde Kullanım Tartım Girişleri")
+        st.info("Aşağıdaki alanlar reçeteye göre hesaplanan **Teorik İhtiyaç** miktarlarını varsayılan olarak getirir. Eğer sahada reaktöre fiilen farklı miktarda besleme yapıldıysa değerleri manuel güncelleyin.")
+        
+        # Operatörün manuel giriş formu
         with st.form("uretim_form"):
-            recete_secenekleri = [r["Reçete Adı"] for r in st.session_state.receteler]
-            secilen_recete_adi = st.selectbox("Üretilecek Ürün / Reçete Seçin", recete_secenekleri)
-            hedef_miktar = st.number_input("Hedef Üretim Miktarı (Kg)", min_value=1.0, value=1000.0, step=100.0, format="%.1f")
-            u_lot = st.text_input("Üretim Parti / Silo No", value=f"PET-LOT-{datetime.now().strftime('%Y%m%d%H%M')}")
+            fiili_girisler = {}
             
-            uretim_submit = st.form_submit_button("Üretim Emrini Onayla ve Reaktifleri Tüket")
+            # Form içinde hammaddeleri grid yapısında gösteriyoruz
+            c1_f, c2_f, c3_f, c4_f = st.columns(4)
+            cols_list = [c1_f, c2_f, c3_f, c4_f]
+            
+            for idx, (h_adi, oran) in enumerate(secilen_recete["BOM (Kg/Kg)"].items()):
+                teorik_ihtiyac = hedef_miktar * oran
+                current_col = cols_list[idx % 4]
+                
+                # Operatörün düzenleyebileceği fiili giriş kutusu
+                fiili_girisler[h_adi] = current_col.number_input(
+                    f"{h_adi} Fiili Kullanım (Kg)", 
+                    min_value=0.0, 
+                    value=float(teorik_ihtiyac), 
+                    step=1.0, 
+                    format="%.2f",
+                    help=f"Teorik Hesaplanan: {teorik_ihtiyac:,.2f} Kg"
+                )
+            
+            st.write(" ")
+            uretim_submit = st.form_submit_button("Üretim Emrini Onayla ve Fiili Miktarları Stoktan Düş")
+            
             if uretim_submit:
-                secilen_recete = next(r for r in st.session_state.receteler if r["Reçete Adı"] == secilen_recete_adi)
                 stok_kontrol_basarili = True
-                gerekli_miktarlar = {}
                 eksik_olanlar = []
                 
-                for h_adi, oran in secilen_recete["BOM (Kg/Kg)"].items():
-                    gereken_kg = hedef_miktar * oran
-                    gerekli_miktarlar[h_adi] = gereken_kg
+                # Stok kontrolünü operatörün girdiği FİİLİ değerlere göre yapıyoruz
+                for h_adi, fiili_kg in fiili_girisler.items():
                     mevcut_kg = h_stok.get(h_adi, 0.0)
-                    if mevcut_kg < gereken_kg:
+                    if mevcut_kg < fiili_kg:
                         stok_kontrol_basarili = False
-                        eksik_olanlar.append(f"{h_adi} (Gereken: {gereken_kg:,.1f} Kg, Mevcut: {mevcut_kg:,.1f} Kg)")
+                        eksik_olanlar.append(f"{h_adi} (Fiili Talep: {fiili_kg:,.1f} Kg, Depo Mevcut: {mevcut_kg:,.1f} Kg)")
                 
                 if not stok_kontrol_basarili:
-                    st.error(f"❌ Üretim Başarısız! Yetersiz Hammadde:\n" + "\n".join([f"- {item}" for item in eksik_olanlar]))
+                    st.error(f"❌ Üretim Başarısız! Girilen fiili kullanım miktarları mevcut depo stoklarını aşıyor:\n" + "\n".join([f"- {item}" for item in eksik_olanlar]))
                 else:
-                    for h_adi, gereken_kg in gerekli_miktarlar.items():
-                        st.session_state.hammadde_kullanilan_toplam[h_adi] += gereken_kg
+                    # Gerçekleşen fiili tüketimi merkezi stoktan düşüyoruz
+                    for h_adi, fiili_kg in fiili_girisler.items():
+                        st.session_state.hammadde_kullanilan_toplam[h_adi] += fiili_kg
                     
+                    # Üretilen mamulü depoya ekliyoruz
                     st.session_state.mamul_depo.append({
                         "Üretim Tarihi": datetime.now().strftime("%Y-%m-%d %H:%M"),
                         "Ürün": secilen_recete_adi,
                         "Üretim LOT / Silo": u_lot,
                         "Miktar (Kg)": hedef_miktar
                     })
-                    st.success(f"🎉 {hedef_miktar:,.1f} Kg Üretim Başarıyla Tamamlandı!")
+                    st.success(f"🎉 {hedef_miktar:,.1f} Kg Üretim Başarıyla Tamamlandı! Stoklardan manuel girilen fiili tartım miktarları düşüldü.")
                     st.rerun()
 
     st.write("---")

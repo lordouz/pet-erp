@@ -3,7 +3,7 @@ import pandas as pd
 from datetime import datetime
 
 # 1. SAYFA VE TASARIM AYARLARI
-st.set_page_config(page_title="PET Resin Komple ERP v2.1", layout="wide")
+st.set_page_config(page_title="PET Resin Komple ERP v2.2", layout="wide")
 
 # 2. MERKEZİ VERİ TABANI SİMÜLASYONU
 if 'hammadde_depo' not in st.session_state:
@@ -18,21 +18,16 @@ if 'hammadde_depo' not in st.session_state:
         {"Giriş Tarihi": "2026-08-15", "Hammadde": "DEG", "LOT No": "DEG-LOT-001", "Miktar (Ton)": 4.0}
     ]
 
+# Reçeteleri boş başlatıyoruz, tamamen siz panelden oluşturacaksınız
 if 'receteler' not in st.session_state:
-    st.session_state.receteler = [
-        {"Reçete Adı": "Şişelik PET Resin (IV 0.80)", "Gereken PTA (Ton/1 Ton Ürün)": 0.86, "Gereken MEG (Ton/1 Ton Ürün)": 0.34}
-    ]
+    st.session_state.receteler = []
 
 if 'uretim_emirleri' not in st.session_state:
     st.session_state.uretim_emirleri = []
 
+# Mamul deposunu boş başlatıyoruz, ürettikçe listeniz kendiliğinden oluşacak
 if 'mamul_depo' not in st.session_state:
-    st.session_state.mamul_depo = [
-        {"Üretim Tarihi": "2026-08-16", "Ürün": "Şişelik PET Resin (IV 0.80)", "Üretim LOT": "PR-LOT-999", "Miktar (Ton)": 10.0}
-    ]
-
-if 'satis_gecmisi' not in st.session_state:
-    st.session_state.satis_gecmisi = []
+    st.session_state.mamul_depo = []
 
 # --- ANLIK STOK HESAPLAYICILAR ---
 def toplam_hammadde_stok():
@@ -47,15 +42,14 @@ def toplam_mamul_stok():
     if df.empty: return {}
     return df.groupby("Ürün")["Miktar (Ton)"].sum().to_dict()
 
-# 3. YAN PANEL MENÜ SİSTEMİ
-st.sidebar.title("🧪 PET Resin ERP v2.1")
+# 3. YAN PANEL MENÜ SİSTEMİ (Satış Sayfası Çıkarıldı)
+st.sidebar.title("🧪 PET Resin ERP v2.2")
 st.sidebar.write("---")
 sayfa = st.sidebar.radio("Gitmek İstediğiniz Sayfa:", [
     "📊 Genel Depo & Stok Durumu",
     "📥 1. Hammadde Giriş Sayfası",
     "📝 2. Reçete Oluşturma Sayfası",
-    "🏭 3. Üretim Emri & Giriş Sayfası",
-    "💰 4. Ürün Satış Sayfası"
+    "🏭 3. Üretim Emri & Giriş Sayfası"
 ])
 
 # ==========================================
@@ -94,7 +88,7 @@ if sayfa == "📊 Genel Depo & Stok Durumu":
         if st.session_state.mamul_depo:
             st.dataframe(pd.DataFrame(st.session_state.mamul_depo), use_container_width=True)
         else:
-            st.info("Mamul deposunda henüz ürün yok.")
+            st.info("Mamul deposu boş. Listenizi oluşturmak için lütfen önce üretim yapın.")
 
 # ==========================================
 # SAYFA: HAMMADDE GİRİŞİ
@@ -123,9 +117,10 @@ elif sayfa == "📥 1. Hammadde Giriş Sayfası":
 # ==========================================
 elif sayfa == "📝 2. Reçete Oluşturma Sayfası":
     st.header("📝 Yeni Ürün Reçetesi (BOM) Tanımlama")
+    st.write("Kendi mamul listenizi oluşturmak için ilk olarak buradan reçete ismi ve kimyasal oranları belirleyin.")
     
     with st.form("recete_form"):
-        r_adi = st.text_input("Reçete / Ürün Adı", placeholder="Örn: Film Tipi PET Resin")
+        r_adi = st.text_input("Reçete / Ürün Adı", placeholder="Örn: Şişelik PET Resin (IV 0.80)")
         r_pta = st.number_input("1 Ton PET için gereken PTA (Ton)", min_value=0.0, value=0.86)
         r_meg = st.number_input("1 Ton PET için gereken MEG (Ton)", min_value=0.0, value=0.34)
         
@@ -137,9 +132,11 @@ elif sayfa == "📝 2. Reçete Oluşturma Sayfası":
                 st.session_state.receteler.append({
                     "Reçete Adı": r_adi, "Gereken PTA (Ton/1 Ton Ürün)": r_pta, "Gereken MEG (Ton/1 Ton Ürün)": r_meg
                 })
-                st.success(f"🎉 '{r_adi}' reçetesi eklendi.")
+                st.success(f"🎉 '{r_adi}' reçetesi başarıyla oluşturuldu.")
     
-    st.dataframe(pd.DataFrame(st.session_state.receteler), use_container_width=True)
+    if st.session_state.receteler:
+        st.subheader("📋 Kayıtlı Reçeteleriniz (Mamul Havuzunuz)")
+        st.dataframe(pd.DataFrame(st.session_state.receteler), use_container_width=True)
 
 # ==========================================
 # SAYFA: ÜRETİM EMRİ VE GİRİŞİ
@@ -148,16 +145,16 @@ elif sayfa == "🏭 3. Üretim Emri & Giriş Sayfası":
     st.header("🏭 Üretim Emri Girişi ve Otomatik Stok Düşümü")
     
     if not st.session_state.receteler:
-        st.warning("Lütfen önce Reçete Oluşturma sayfasından bir reçete tanımlayın.")
+        st.warning("⚠️ Kendi mamul listenizi oluşturmak için lütfen önce 'Reçete Oluşturma Sayfası' üzerinden en az bir ürün tanımlayın.")
     else:
         recete_listesi = [r["Reçete Adı"] for r in st.session_state.receteler]
         
         with st.form("uretim_form"):
-            u_secilen_recete = st.selectbox("Kullanılacak Üretim Reçetesi", recete_listesi)
-            u_lot = st.text_input("Üretilecek Yeni Ürün LOT Numarası", value=f"PR-{datetime.now().strftime('%M%S')}")
-            u_miktar = st.number_input("Üretilecek Hedef Miktar (Ton)", min_value=0.1, value=10.0)
+            u_secilen_recete = st.selectbox("Üretilecek Mamul Seçin", recete_listesi)
+            u_lot = st.text_input("Üretim LOT Numarası", value=f"PR-{datetime.now().strftime('%M%S')}")
+            u_miktar = st.number_input("Üretilecek Miktar (Ton)", min_value=0.1, value=10.0)
             
-            submit = st.form_submit_button("Üretimi Tamamla (Stokları İşle)")
+            submit = st.form_submit_button("Üretimi Tamamla (Depoya Ekle)")
             if submit:
                 recete_detay = next(r for r in st.session_state.receteler if r["Reçete Adı"] == u_secilen_recete)
                 toplam_gereken_pta = u_miktar * recete_detay["Gereken PTA (Ton/1 Ton Ürün)"]
@@ -179,57 +176,13 @@ elif sayfa == "🏭 3. Üretim Emri & Giriş Sayfası":
                             h_kayit["Miktar (Ton)"] -= fark
                             meg_dusulecek -= fark
                     
+                    # Mamul listesine ekleme yapılıyor
                     st.session_state.mamul_depo.append({
                         "Üretim Tarihi": datetime.now().strftime("%Y-%m-%d"),
                         "Ürün": u_secilen_recete,
                         "Üretim LOT": u_lot,
                         "Miktar (Ton)": u_miktar
                     })
-                    st.success(f"🚀 Üretim Tamamlandı! {u_lot} lotu ile {u_miktar} Ton mamul depoya girdi.")
+                    st.success(f"🚀 Üretim Başarıyla Tamamlandı! {u_secilen_recete} ürünü {u_lot} lotu ile mamul listenize eklendi.")
                 else:
-                    st.error("❌ Yetersiz Hammadde!")
-
-# ==========================================
-# SAYFA: ÜRÜN SATIŞI (MAMUL DÜŞÜŞÜ)
-# ==========================================
-elif sayfa == "💰 4. Ürün Satış Sayfası":
-    st.header("💰 Mamul Satış Girişi (Depodan Çıkış)")
-    
-    aktif_mamuller = [m for m in st.session_state.mamul_depo if m["Miktar (Ton)"] > 0]
-    
-    if not aktif_mamuller:
-        st.info("Satış yapılabilecek hazır mamul ürünü bulunmamaktadır.")
-    else:
-        mamul_opsiyonlar = [f"{m['Üretim LOT']} - {m['Ürün']} (Kalan: {m['Miktar (Ton)']} Ton)" for m in aktif_mamuller]
-        
-        with st.form("satis_form"):
-
-            secilen_secenek = st.selectbox("Satılacak Ürün LOT'unu Seçin", mamul_opsiyonlar)
-            satis_miktari = st.number_input("Satılan Miktar (Ton)", min_value=0.1, step=1.0)
-            musteri = st.text_input("Müşteri Firma Adı")
-            
-            submit = st.form_submit_button("Satışı Onayla ve Depodan Düş")
-            if submit:
-                index = mamul_opsiyonlar.index(secilen_secenek)
-                hedef_mamul = aktif_mamuller[index]
-                
-                if satis_miktari > hedef_mamul["Miktar (Ton)"]:
-                    st.error("❌ Hata: Seçilen LOT'ta bu kadar ürün yok!")
-                else:
-                    for m_kayit in st.session_state.mamul_depo:
-                        if m_kayit["Üretim LOT"] == hedef_mamul["Üretim LOT"]:
-                            m_kayit["Miktar (Ton)"] -= satis_miktari
-                    
-                    st.session_state.satis_gecmisi.append({
-                        "Satış Tarihi": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                        "Müşteri": musteri,
-                        "Ürün": hedef_mamul["Ürün"],
-                        "Giden LOT": hedef_mamul["Üretim LOT"],
-                        "Satılan Miktar (Ton)": satis_miktari
-                    })
-                    st.success(f"💸 Satış Onaylandı!")
-                    st.rerun()
-                    
-    if st.session_state.satis_gecmisi:
-        st.subheader("📜 Satış Faturaları / Geçmişi")
-        st.dataframe(pd.DataFrame(st.session_state.satis_gecmisi), use_container_width=True)
+                    st.error("❌ Yetersiz Hammadde! Üretim gerçekleştirilemedi.")

@@ -21,7 +21,7 @@ if 'hammadde_depo' not in st.session_state:
 
 if 'hammadde_giren_toplam' not in st.session_state:
     st.session_state.hammadde_giren_toplam = {
-        "PTA": 100000.0, "MEG": 50000.0 "Antimon": 5000.0, "Fosforik Asit": 2000.0,
+        "PTA": 100000.0, "MEG": 50000.0, "Antimon": 5000.0, "Fosforik Asit": 2000.0,
         "Mavi Boya": 500.0, "Kırmızı Boya": 300.0, "IPA": 1500.0, "DEG": 4000.0
     }
 

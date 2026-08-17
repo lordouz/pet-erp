@@ -203,7 +203,7 @@ elif sayfa == "💰 4. Ürün Satış Sayfası":
         mamul_opsiyonlar = [f"{m['Üretim LOT']} - {m['Ürün']} (Kalan: {m['Miktar (Ton)']} Ton)" for m in aktif_mamuller]
         
         with st.form("satis_form"):
-            secilen_secenek = st.selectbox("Satılacak Ürün LOT'unu Seçin",         with st.form("satis_form"):
+
             secilen_secenek = st.selectbox("Satılacak Ürün LOT'unu Seçin", mamul_opsiyonlar)
             satis_miktari = st.number_input("Satılan Miktar (Ton)", min_value=0.1, step=1.0)
             musteri = st.text_input("Müşteri Firma Adı")

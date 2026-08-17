@@ -32,7 +32,12 @@ if 'hammadde_kullanilan_toplam' not in st.session_state:
     }
 
 if 'receteler' not in st.session_state:
-    st.session_state.receteler = []
+    st.session_state.receteler = [
+        {
+            "Reçete Adı": "Şişelik PET Resin (IV 0.80) - Standart",
+            "BOM (Kg/Kg)": {"PTA": 0.850, "MEG": 0.135, "Antimon": 0.005, "Fosforik Asit": 0.002, "Mavi Boya": 0.001, "Kırmızı Boya": 0.001, "IPA": 0.004, "DEG": 0.002}
+        }
+    ]
 
 if 'mamul_depo' not in st.session_state:
     st.session_state.mamul_depo = []
@@ -41,13 +46,18 @@ if 'mamul_depo' not in st.session_state:
 def toplam_hammadde_stok():
     df = pd.DataFrame(st.session_state.hammadde_depo)
     ham_listesi = ["PTA", "MEG", "Antimon", "Fosforik Asit", "Mavi Boya", "Kırmızı Boya", "IPA", "DEG"]
+    
     if df.empty: 
         return {h: 0.0 for h in ham_listesi}
+        
     grup_toplamlari = df.groupby("Hammadde")["Miktar (Kg)"].sum().to_dict()
+    güncel_stok = {}
+    
     for h in ham_listesi:
-        if h not in grup_toplamlari:
-            grup_toplamlari[h] = 0.0
-    return grup_toplamlari
+        giren = grup_toplamlari.get(h, 0.0)
+        kullanilan = st.session_state.hammadde_kullanilan_toplam.get(h, 0.0)
+        güncel_stok[h] = max(0.0, giren - kullanilan)
+    return güncel_stok
 
 def toplam_mamul_stok():
     df = pd.DataFrame(st.session_state.mamul_depo)
@@ -88,7 +98,6 @@ def tek_rapor_excel_olustur():
     with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
         df_rapor.to_excel(writer, index=False, sheet_name='Fabrika Genel Stok Raporu')
     return buffer.getvalue(), df_rapor
-
 # 3. YAN PANEL MENÜ SİSTEMİ
 st.sidebar.title("🧪 PET Resin ERP v2.6")
 st.sidebar.write("---")
@@ -145,6 +154,7 @@ if sayfa == "📊 Genel Depo & Stok Durumu":
             st.dataframe(pd.DataFrame(st.session_state.mamul_depo), use_container_width=True)
         else:
             st.info("Mamul deposu boş. Listenizi oluşturmak için lütfen önce üretim yapın.")
+
 # ==========================================
 # SAYFA: HAMMADDE GİRİŞİ
 # ==========================================
@@ -177,100 +187,96 @@ elif sayfa == "📝 2. Reçete Oluşturma Sayfası":
     
     with st.form("recete_form"):
         r_adi = st.text_input("Reçete / Ürün Adı", placeholder="Örn: Şişelik PET Resin (IV 0.80)")
+        st.subheader("🧪 1 Kg Ürün İçin Gereken Hammadde Oranları (Kg Oranı Olarak)")
         
-        st.subheader("🧪 1 Kg Ürün İçin Gereken Hammadde Oranları (Gram/Kg Cinsinden)")
         c1, c2, c3, c4 = st.columns(4)
-        r_pta = c1.number_input("PTA (Kg)", min_value=0.0, value=0.860, format="%.3f", help="1 kg ürün için gereken pta kg miktarı")
-        r_meg = c2.number_input("MEG (Kg)", min_value=0.0, value=0.340, format="%.3f")
-        r_ant = c3.number_input("Antimon (Kg)", min_value=0.0, value=0.001, format="%.4f")
-        r_fos = c4.number_input("Fosforik Asit (Kg)", min_value=0.0, value=0.001, format="%.4f")
+        pta_oran = c1.number_input("PTA Oranı", min_value=0.0, max_value=1.0, value=0.850, step=0.001, format="%.3f")
+        meg_oran = c2.number_input("MEG Oranı", min_value=0.0, max_value=1.0, value=0.135, step=0.001, format="%.3f")
+        ant_oran = c3.number_input("Antimon Oranı", min_value=0.0, max_value=1.0, value=0.005, step=0.001, format="%.3f")
+        fos_oran = c4.number_input("Fosforik Asit", min_value=0.0, max_value=1.0, value=0.002, step=0.001, format="%.3f")
         
         c5, c6, c7, c8 = st.columns(4)
-        r_mav = c5.number_input("Mavi Boya (Kg)", min_value=0.0, value=0.0001, format="%.5f")
-        r_kir = c6.number_input("Kırmızı Boya (Kg)", min_value=0.0, value=0.0001, format="%.5f")
-        r_ipa = c7.number_input("IPA (Kg)", min_value=0.0, value=0.005, format="%.3f")
-        r_deg = c8.number_input("DEG (Kg)", min_value=0.0, value=0.010, format="%.3f")
+        mavi_oran = c5.number_input("Mavi Boya Oranı", min_value=0.0, max_value=1.0, value=0.001, step=0.001, format="%.3f")
+        kirmizi_oran = c6.number_input("Kırmızı Boya Oranı", min_value=0.0, max_value=1.0, value=0.001, step=0.001, format="%.3f")
+        ipa_oran = c7.number_input("IPA Oranı", min_value=0.0, max_value=1.0, value=0.004, step=0.001, format="%.3f")
+        deg_oran = c8.number_input("DEG Oranı", min_value=0.0, max_value=1.0, value=0.002, step=0.001, format="%.3f")
         
-        submit = st.form_submit_button("Tüm Hammaddelerle Reçeteyi Kaydet")
-        if submit:
-            if r_adi == "":
-                st.error("Reçete adı boş olamaz.")
+        recete_submit = st.form_submit_button("Reçeteyi Sisteme Kaydet")
+        if recete_submit:
+            toplam_kütle = pta_oran + meg_oran + ant_oran + fos_oran + mavi_oran + kirmizi_oran + ipa_oran + deg_oran
+            if not r_adi:
+                st.error("❌ Lütfen Reçete / Ürün Adı alanını boş bırakmayın.")
+            elif toplam_kütle <= 0:
+                st.error("❌ Girdiğiniz hammadde oranlarının toplamı sıfır olamaz.")
             else:
-                st.session_state.receteler.append({
-                    "Reçete Adı": r_adi, "PTA": r_pta, "MEG": r_meg, "Antimon": r_ant, 
-                    "Fosforik Asit": r_fos, "Mavi Boya": r_mav, "Kırmızı Boya": r_kir, "IPA": r_ipa, "DEG": r_deg
-                })
-                st.success(f"🎉 Tüm hammaddeleri içeren '{r_adi}' reçetesi başarıyla havuza eklendi.")
-    
+                yeni_recete = {
+                    "Reçete Adı": r_adi,
+                    "BOM (Kg/Kg)": {
+                        "PTA": pta_oran, "MEG": meg_oran, "Antimon": ant_oran, "Fosforik Asit": fos_oran,
+                        "Mavi Boya": mavi_oran, "Kırmızı Boya": kirmizi_oran, "IPA": ipa_oran, "DEG": deg_oran
+                    }
+                }
+                st.session_state.receteler.append(yeni_recete)
+                st.success(f"✅ '{r_adi}' reçetesi başarıyla kaydedildi!")
+
+    st.subheader("📋 Sistemde Tanımlı Reçeteler")
     if st.session_state.receteler:
-        st.subheader("📋 Sistemde Kayıtlı Reçeteler ve Oranları")
-        st.dataframe(pd.DataFrame(st.session_state.receteler), use_container_width=True)
+        for idx, rec in enumerate(st.session_state.receteler):
+            with st.expander(f"🔹 {rec['Reçete Adı']}"):
+                st.json(rec["BOM (Kg/Kg)"])
+    else:
+        st.info("Sistemde henüz kayıtlı reçete bulunmamaktadır.")
 
 # ==========================================
-# SAYFA: ÜRETİM EMRİ VE GİRİŞİ
+# SAYFA: ÜRETİM EMRİ & GİRİŞİ
 # ==========================================
 elif sayfa == "🏭 3. Üretim Emri & Giriş Sayfası":
-    st.header("🏭 Üretim Emri Girişi ve Fiili Miktar Düzenleme (Kg)")
+    st.header("🏭 Üretim Emri Oluşturma ve Reaktör Besleme")
     
     if not st.session_state.receteler:
-        st.warning("⚠️ Lütfen önce 'Reçete Oluşturma Sayfası' üzerinden bir ürün tanımlayın.")
+        st.warning("⚠️ Üretim emri verebilmek için öncelikle reçete tanımlamalısınız.")
     else:
-        recete_listesi = [r["Reçete Adı"] for r in st.session_state.receteler]
+        h_stok = toplam_hammadde_stok()
         
-        u_secilen_recete = st.selectbox("Üretilecek Mamul Seçin", recete_listesi)
-        u_lot = st.text_input("Üretim LOT Numarası", value=f"PR-{datetime.now().strftime('%M%S')}")
-        u_miktar = st.number_input("Üretilecek Miktar (Kg)", min_value=1.0, value=1000.0, step=100.0)
-        
-        recete_detay = next(r for r in st.session_state.receteler if r["Reçete Adı"] == u_secilen_recete)
-        
-        st.write("---")
-        st.subheader("📋 Fiili Tüketim Miktarlarını Girin (Kg)")
-        
-        with st.form("fiili_tuketim_form"):
-            col1, col2, col3, col4 = st.columns(4)
-            f_pta = col1.number_input("Fiili PTA (Kg)", value=u_miktar * recete_detay["PTA"], format="%.3f")
-            f_meg = col2.number_input("Fiili MEG (Kg)", value=u_miktar * recete_detay["MEG"], format="%.3f")
-            f_ant = col3.number_input("Fiili Antimon (Kg)", value=u_miktar * recete_detay["Antimon"], format="%.4f")
-            f_fos = col4.number_input("Fiili Fosforik Asit (Kg)", value=u_miktar * recete_detay["Fosforik Asit"], format="%.4f")
+        with st.form("uretim_form"):
+            recete_secenekleri = [r["Reçete Adı"] for r in st.session_state.receteler]
+            secilen_recete_adi = st.selectbox("Üretilecek Ürün / Reçete Seçin", recete_secenekleri)
+            hedef_miktar = st.number_input("Hedef Üretim Miktarı (Kg)", min_value=1.0, value=1000.0, step=100.0, format="%.1f")
+            u_lot = st.text_input("Üretim Parti / Silo No", value=f"PET-LOT-{datetime.now().strftime('%Y%m%d%H%M')}")
             
-            col5, col6, col7, col8 = st.columns(4)
-            f_mav = col5.number_input("Fiili Mavi Boya (Kg)", value=u_miktar * recete_detay["Mavi Boya"], format="%.5f")
-            f_kir = col6.number_input("Fiili Kırmızı Boya (Kg)", value=u_miktar * recete_detay["Kırmızı Boya"], format="%.5f")
-            f_ipa = col7.number_input("Fiili IPA (Kg)", value=u_miktar * recete_detay["IPA"], format="%.3f")
-            f_deg = col8.number_input("Fiili DEG (Kg)", value=u_miktar * recete_detay["DEG"], format="%.3f")
-            
-            st.write("")
-            onayla_sekmesi = st.form_submit_button("Üretimi Onayla ve Depoya Ekle")
-            
-            if onayla_sekmesi:
-                fiili_tuketimler = {
-                    "PTA": f_pta, "MEG": f_meg, "Antimon": f_ant, "Fosforik Asit": f_fos,
-                    "Mavi Boya": f_mav, "Kırmızı Boya": f_kir, "IPA": f_ipa, "DEG": f_deg
-                }
+            uretim_submit = st.form_submit_button("Üretim Emrini Onayla ve Reaktifleri Tüket")
+            if uretim_submit:
+                secilen_recete = next(r for r in st.session_state.receteler if r["Reçete Adı"] == secilen_recete_adi)
+                stok_kontrol_basarili = True
+                gerekli_miktarlar = {}
+                eksik_olanlar = []
                 
-                current_h_stok = toplam_hammadde_stok()
-                yetersiz_maddeler = []
+                for h_adi, oran in secilen_recete["BOM (Kg/Kg)"].items():
+                    gereken_kg = hedef_miktar * oran
+                    gerekli_miktarlar[h_adi] = gereken_kg
+                    mevcut_kg = h_stok.get(h_adi, 0.0)
+                    if mevcut_kg < gereken_kg:
+                        stok_kontrol_basarili = False
+                        eksik_olanlar.append(f"{h_adi} (Gereken: {gereken_kg:,.1f} Kg, Mevcut: {mevcut_kg:,.1f} Kg)")
                 
-                for madde, miktar in fiili_tuketimler.items():
-                    if current_h_stok.get(madde, 0.0) < miktar:
-                        yetersiz_maddeler.append(f"{madde}")
-                
-                if yetersiz_maddeler:
-                    st.error(f"❌ Stok Yetersiz!")
+                if not stok_kontrol_basarili:
+                    st.error(f"❌ Üretim Başarısız! Yetersiz Hammadde:\n" + "\n".join([f"- {item}" for item in eksik_olanlar]))
                 else:
-                    for madde, dusulecek_miktar in fiili_tuketimler.items():
-                        st.session_state.hammadde_kullanilan_toplam[madde] += dusulecek_miktar
-                        kalan_dusulecek = dusulecek_miktar
-                        for h_kayit in st.session_state.hammadde_depo:
-                            if h_kayit["Hammadde"] == madde and kalan_dusulecek > 0:
-                                fark = min(h_kayit["Miktar (Kg)"], kalan_dusulecek)
-                                h_kayit["Miktar (Kg)"] -= fark
-                                kalan_dusulecek -= fark
+                    for h_adi, gereken_kg in gerekli_miktarlar.items():
+                        st.session_state.hammadde_kullanilan_toplam[h_adi] += gereken_kg
                     
                     st.session_state.mamul_depo.append({
-                        "Üretim Tarihi": datetime.now().strftime("%Y-%m-%d"),
-                        "Ürün": u_secilen_recete,
-                        "Üretim LOT": u_lot,
-                        "Miktar (Kg)": u_miktar
+                        "Üretim Tarihi": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                        "Ürün": secilen_recete_adi,
+                        "Üretim LOT / Silo": u_lot,
+                        "Miktar (Kg)": hedef_miktar
                     })
-                    st.success(f"🚀 Üretim Başarıyla Onaylandı! Miktarlar kilogram bazında depodan düşüldü.")
+                    st.success(f"🎉 {hedef_miktar:,.1f} Kg Üretim Başarıyla Tamamlandı!")
+                    st.rerun()
+
+    st.write("---")
+    st.subheader("📦 Güncel Mamul (PET) Depo Stok Geçmişi")
+    if st.session_state.mamul_depo:
+        st.dataframe(pd.DataFrame(st.session_state.mamul_depo), use_container_width=True)
+    else:
+        st.info("Henüz üretilmiş bir mamul bulunmuyor.")

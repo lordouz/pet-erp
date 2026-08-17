@@ -6,7 +6,7 @@ import io
 # 1. SAYFA VE TASARIM AYARLARI
 st.set_page_config(page_title="PET Resin Komple ERP v2.6", layout="wide")
 
-# MALZEME KARTLARI SABİT LİSTESİ (Operatörün elle yazmasını engelleyen rehber sözlük)
+# MALZEME KARTLARI SABİT LİSTESİ
 KATEGORI_MALZEMELERI = {
     "Hammadde": ["PTA", "MEG", "IPA", "DEG"],
     "Yardımcı Kimyasal": ["Antimon", "Fosforik Asit", "Mavi Boya", "Kırmızı Boya"],
@@ -143,23 +143,17 @@ if sayfa == "📊 Genel Depo & Stok Durumu":
     else:
         st.info("Satışa hazır bitmiş mamul stoku bulunmuyor.")
 # ==========================================
-# SAYFA: HAMMADDE / MALZEME GİRİŞİ (YENİLENDİ - SELECTBOX ENTEGRE EDİLDİ)
+# SAYFA: HAMMADDE / MALZEME GİRİŞİ
 # ==========================================
 elif sayfa == "📥 1. Hammadde Giriş Sayfası":
     st.header("📥 Fabrika Depolarına Giriş Kabul Ekranı")
     
-    # 1. Aşama: Kategori Seçimi (Form dışında, alt kutuyu anlık tetiklemesi için)
     kat_turu = st.selectbox("Malzeme Kategorisi Seçin", ["Hammadde", "Yardımcı Kimyasal", "Ambalaj", "Ara Mamul"])
-    
-    # Seçilen kategoriye ait tanımlı malzemeleri listeden çekiyoruz
     uygun_malzemeler = KATEGORI_MALZEMELERI.get(kat_turu, [])
     
     with st.form("hammadde_form"):
         g_tarih = st.date_input("Giriş Tarihi", value=datetime.now())
-        
-        # ARTIK ELLE YAZILMIYOR: Seçilen kategoriye ait kalemler selectbox olarak gelir
         h_turu = st.selectbox("Malzeme / Kalem Adı", uygun_malzemeler)
-        
         h_lot = st.text_input("Gelen LOT / Parti Numarası", placeholder="Örn: LOT-PTA-2026-01")
         h_miktar = st.number_input("Gelen Miktar (Kg veya Adet)", min_value=0.1, step=50.0, format="%.1f")
         
@@ -169,11 +163,7 @@ elif sayfa == "📥 1. Hammadde Giriş Sayfası":
                 st.error("Lütfen LOT numarasını boş bırakmayın!")
             else:
                 st.session_state.hammadde_depo.append({
-                    "Giriş Tarihi": str(g_tarih), 
-                    "Kategori": kat_turu, 
-                    "Hammadde": h_turu, 
-                    "LOT No": h_lot, 
-                    "Miktar (Kg/Adet)": h_miktar
+                    "Giriş Tarihi": str(g_tarih), "Kategori": kat_turu, "Hammadde": h_turu, "LOT No": h_lot, "Miktar (Kg/Adet)": h_miktar
                 })
                 st.success(f"✅ {h_miktar:,.1f} ölçüsünde {h_turu} ({kat_turu}) depoya başarıyla kabul edildi.")
                 st.rerun()
@@ -205,7 +195,7 @@ elif sayfa == "📝 2. Reçete Oluşturma Sayfası":
             st.success(f"✅ '{r_adi}' ({r_turu}) başarıyla kaydedildi!")
 
 # ==========================================
-# SAYFA: ÜRETİM EMRİ & GİRİŞİ
+# SAYFA: ÜRETİM EMRİ & GİRİŞİ (YAZIM HATASI TAMAMEN DÜZELTİLDİ)
 # ==========================================
 elif sayfa == "🏭 3. Üretim Emri & Giriş Sayfası":
     st.header("🏭 Üretim Yönetim ve Reaktör Besleme Arayüzü")
@@ -215,7 +205,9 @@ elif sayfa == "🏭 3. Üretim Emri & Giriş Sayfası":
     ])
     
     hedef_tur = "Ara Mamul Reçetesi" if "1)" in u_kategori else "Mamul Reçetesi"
-     uygun_receteler = [r for r in st.session_state.receteler if r.get("Tür") == hedef_tur]
+    
+    # KANITLI DÜZELTME: target_tur hatası tamamen temizlendi
+    uygun_receteler = [r for r in st.session_state.receteler if r.get("Tür") == hedef_tur]
     
     if not uygun_receteler:
         st.warning(f"⚠️ Bu kategoride kayıtlı bir reçete bulunamadı. Lütfen önce {hedef_tur} tanımlayın.")
@@ -280,3 +272,4 @@ elif sayfa == "🏭 3. Üretim Emri & Giriş Sayfası":
                         })
                         st.success(f"🎉 Nihai Ürün Başarıyla Paketlenip Ambalajlandı! {hedef_miktar:,.1f} Kg ürün Satış Deposuna aktarıldı.")
                     st.rerun()
+

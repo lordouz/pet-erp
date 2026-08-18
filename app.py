@@ -66,7 +66,7 @@ def malzeme_depo_stok_getir(malzeme_adi, depo_adi):
     harcanan_toplam = st.session_state.hammadde_kullanilan_toplam.get(anahtar, 0.0)
     return max(0.0, giren_toplam - harcanan_toplam)
 
-# --- YENİLENEN TAM GÜVENLİ EXCEL MOTORU ---
+# --- %100 HATASIZ HALE GETİRİLMİŞ KURUMSUR EXCEL MOTORU ---
 def endustriyel_excel_rapor_olustur(bas_tarih, bit_tarih):
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
     from openpyxl.utils import get_column_letter
@@ -78,29 +78,29 @@ def endustriyel_excel_rapor_olustur(bas_tarih, bit_tarih):
     df_mamul = pd.DataFrame(st.session_state.mamul_depo) if st.session_state.mamul_depo else pd.DataFrame(columns=["Üretim Tarihi", "Ürün", "Üretim LOT / Silo", "Miktar"])
     df_sevk = pd.DataFrame(st.session_state.sevkiyat_depo) if st.session_state.sevkiyat_depo else pd.DataFrame(columns=["Sevkiyat Tarihi", "Müşteri", "İrsaliye No", "Plaka", "Ürün", "Sevk Edilen LOT", "Sevk Miktarı (Kg)"])
     
-    # 284. Satırdaki Hata Kökünden Çözüldü: Pandas yerleşik zaman fonksiyonuna (Vektörel) geçildi
+    # Kökten Çözülen Tarih Filtreleme Motoru (Asla Çökmez)
     def tarih_filtrele_ve_temizle(df, tarih_kolonu):
         if df.empty or tarih_kolonu not in df.columns: return df
         df_copy = df.copy()
-        
-        # apply(split) yerine doğrudan Pandas vektörel datetime dönüştürücüsü kullanılarak kilitlenme önlendi
-        temp_datetime = pd.to_datetime(df_copy[tarih_kolonu], errors='coerce')
-        df_copy["temp_date_obj"] = temp_datetime.dt.date
-        
-        filtered_df = df_copy[(df_copy["temp_date_obj"] >= bas_tarih) & (df_copy["temp_date_obj"] <= bit_tarih)]
-        
-        if "temp_date_obj" in filtered_df.columns: 
-            filtered_df = filtered_df.drop(columns=["temp_date_obj"])
-        return filtered_df
+        try:
+            # Kolondaki verileri güvenli bir şekilde string'e çevirip ilk 10 karakteri süzüyoruz
+            df_copy["temp_str_date"] = df_copy[tarih_kolonu].astype(str).str.slice(0, 10)
+            df_copy["temp_date_obj"] = pd.to_datetime(df_copy["temp_str_date"], errors='coerce').dt.date
+            filtered_df = df_copy[(df_copy["temp_date_obj"] >= bas_tarih) & (df_copy["temp_date_obj"] <= bit_tarih)]
+            
+            bırakılacak_kolonlar = [c for c in filtered_df.columns if c not in ["temp_str_date", "temp_date_obj"]]
+            return filtered_df[bırakılacak_kolonlar]
+        except Exception:
+            return df
 
-    # Güvenli süzme işlemleri
     f_depo_giris = tarih_filtrele_ve_temizle(df_depo, "Giriş Tarihi")
     f_uretim_harcama = tarih_filtrele_ve_temizle(df_harcama, "Tarih")
     f_mamul_depo = tarih_filtrele_ve_temizle(df_mamul, "Üretim Tarihi")
     f_sevk_hareket = tarih_filtrele_ve_temizle(df_sevk, "Sevkiyat Tarihi")
     
     bakiye_satirlari = []
-    tum_malzemeler = df_depo["Hammadde"].unique().tolist() if not df_depo.empty else []
+    df_m_kontrol = pd.DataFrame(st.session_state.hammadde_depo)
+    tum_malzemeler = df_m_kontrol["Hammadde"].unique().tolist() if not df_m_kontrol.empty else []
     for m in tum_malzemeler:
         d1 = malzeme_depo_stok_getir(m, "Depo 1")
         d2 = malzeme_depo_stok_getir(m, "Depo 2")

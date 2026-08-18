@@ -207,7 +207,11 @@ elif sayfa == "🗂️ 0. Stok Kartı Tanımlama Sayfası":
             
     st.subheader("📋 Sistemde Kayıtlı Kart Listesi")
     for k, v in st.session_state.stok_kartlari.items():
-        st.write(f"**{k}:** {', '.join([f'{x[\"Ad\"]} ({x[\"Birim\"]})' for x in v])}")
+        # DÜZELTİLDİ: Tırnak çakışmasına sebep olan f-string yapısı temizlendi
+        gosterim_listesi = []
+        for x in v:
+            gosterim_listesi.append(f"{x['Ad']} ({x['Birim']})")
+        st.write(f"**{k}:** {', '.join(gosterim_listesi)}")
 
 # ==========================================
 # SAYFA 1: HAMMADDE / MALZEME GİRİŞİ
@@ -304,6 +308,8 @@ elif sayfa == "🏭 3. Üretim Emri & Giriş Sayfası":
                     current_date_str = datetime.now().strftime("%Y-%m-%d %H:%M")
                     for h_adi, f_amt in fiili_girisler.items():
                         st.session_state.hammadde_kullanilan_toplam[h_adi] = st.session_state.hammadde_kullanilan_toplam.get(h_adi, 0.0) + f_amt
+                        if 'uretim_harcamalari_log' not in st.session_state:
+                            st.session_state.uretim_harcamalari_log = []
                         st.session_state.uretim_harcamalari_log.append({"Tarih": current_date_str, "Üretim LOT": u_lot, "Harcanan Malzeme": h_adi, "Miktar": f_amt, "Birim": malzeme_birimi_bul(h_adi)})
                     
                     if hedef_tur == "Ara Mamul Reçetesi":

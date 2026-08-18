@@ -67,40 +67,54 @@ def segment_stok_getir():
         güncel_stok[h_adi] = max(0.0, giren - kullanilan)
     return güncel_stok
 
+# --- HATALARI GİDERİLMİŞ DETAYLI EXCEL RAPOR MOTORU ---
 def endustriyel_excel_rapor_olustur(bas_tarih, bit_tarih):
     buffer = io.BytesIO()
-    df_depo = pd.DataFrame(st.session_state.hammadde_depo)
-    df_harcama = pd.DataFrame(st.session_state.uretim_harcamalari_log)
-    df_mamul = pd.DataFrame(st.session_state.mamul_depo)
-    df_sevk = pd.DataFrame(st.session_state.sevkiyat_depo)
     
-    def tarih_filtrele(df, tarih_kolonu):
-        if df.empty or tarih_kolonu not in df.columns: return pd.DataFrame()
+    # Boş liste kontrolleriyle DataFrame oluşturma (Hata önleme)
+    df_depo = pd.DataFrame(st.session_state.hammadde_depo) if st.session_state.hammadde_depo else pd.DataFrame(columns=["Giriş Tarihi", "Kategori", "Hammadde", "LOT No", "Miktar", "Birim"])
+    df_harcama = pd.DataFrame(st.session_state.uretim_harcamalari_log) if st.session_state.uretim_harcamalari_log else pd.DataFrame(columns=["Tarih", "Üretim LOT", "Harcanan Malzeme", "Miktar", "Birim"])
+    df_mamul = pd.DataFrame(st.session_state.mamul_depo) if st.session_state.mamul_depo else pd.DataFrame(columns=["Üretim Tarihi", "Ürün", "Üretim LOT / Silo", "Miktar"])
+    df_sevk = pd.DataFrame(st.session_state.sevkiyat_depo) if st.session_state.sevkiyat_depo else pd.DataFrame(columns=["Sevkiyat Tarihi", "Müşteri", "İrsaliye No", "Plaka", "Ürün", "Sevk Edilen LOT", "Sevk Miktarı (Kg)"])
+    
+    # Güvenli Tarih Filtreleme Fonksiyonu
+    def tarih_filtrele_ve_temizle(df, tarih_kolonu):
+        if df.empty or tarih_kolonu not in df.columns: 
+            return df
         df_copy = df.copy()
-        df_copy[tarih_kolonu] = df_copy[tarih_kolonu].apply(lambda x: x.split(" ") if " " in str(x) else str(x))
-        df_copy[tarih_kolonu] = pd.to_datetime(df_copy[tarih_kolonu]).dt.date
-        return df_copy[(df_copy[tarih_kolonu] >= bas_tarih) & (df_copy[tarih_kolonu] <= bit_tarih)]
+        # Saat damgalarını ayıklayıp sadece YYYY-MM-DD formatına indirger
+        df_copy["temp_tarih"] = df_copy[tarih_kolonu].astype(str).apply(lambda x: x.split(" ")[0])
+        df_copy["temp_tarih"] = pd.to_datetime(df_copy["temp_tarih"], errors='coerce').dt.date
+        filtered_df = df_copy[(df_copy["temp_tarih"] >= bas_tarih) & (df_copy["temp_tarih"] <= bit_tarih)]
+        if "temp_tarih" in filtered_df.columns:
+            filtered_df = filtered_df.drop(columns=["temp_tarih"])
+        return filtered_df
 
-    f_depo_giris = tarih_filtrele(df_depo, "Giriş Tarihi")
-    f_uretim_harcama = tarih_filtrele(df_harcama, "Tarih")
-    f_mamul_depo = tarih_filtrele(df_mamul, "Üretim Tarihi")
-    f_sevk_hareket = tarih_filtrele(df_sevk, "Sevkiyat Tarihi")
+    # Tüm tabloları tarih aralığına göre süzüyoruz
+    f_depo_giris = tarih_filtrele_ve_temizle(df_depo, "Giriş Tarihi")
+    f_uretim_harcama = tarih_filtrele_ve_temizle(df_harcama, "Tarih")
+    f_mamul_depo = tarih_filtrele_ve_temizle(df_mamul, "Üretim Tarihi")
+    f_sevk_hareket = tarih_filtrele_ve_temizle(df_sevk, "Sevkiyat Tarihi")
     
+    # Anlık Stok Dengesi Matrisi
     stok_durumu = segment_stok_getir()
     bakiye_satirlari = []
     for malz, kalan_stok in stok_durumu.items():
         bakiye_satirlari.append({
-            "Malzeme / Ürün Adı": malz, "Mevcut Depo Stoğu": kalan_stok,
-            "Ölçü Birimi": malzeme_birimi_bul(malz), "Toplam Harcanan Ölçü": st.session_state.hammadde_kullanilan_toplam.get(malz, 0.0)
+            "Malzeme / Ürün Adı": malz, 
+            "Anlık Mevcut Depo Stoğu": kalan_stok,
+            "Ölçü Birimi": malzeme_birimi_bul(malz), 
+            "Fabrika Toplantı Toplam Tüketim": st.session_state.hammadde_kullanilan_toplam.get(malz, 0.0)
         })
-    df_anlik_bakiye = pd.DataFrame(bakiye_satirlari)
+    df_anlik_bakiye = pd.DataFrame(bakiye_satirlari) if bakiye_satirlari else pd.DataFrame(columns=["Malzeme / Ürün Adı", "Anlık Mevcut Depo Stoğu", "Ölçü Birimi", "Fabrika Toplam Tüketim"])
 
+    # Tek Excel Dosyasına Çoklu Sheet Olarak Yazma
     with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
-        if not df_anlik_bakiye.empty: df_anlik_bakiye.to_excel(writer, index=False, sheet_name='Anlık Depo Bakiyeleri Özet')
-        if not f_depo_giris.empty: f_depo_giris.to_excel(writer, index=False, sheet_name='Dönemsel Giriş Hareketleri')
-        if not f_uretim_harcama.empty: f_uretim_harcama.to_excel(writer, index=False, sheet_name='Dönemsel Tüketim Detayları')
-        if not f_mamul_depo.empty: f_mamul_depo.to_excel(writer, index=False, sheet_name='Dönemsel Mamul Üretimleri')
-        if not f_sevk_hareket.empty: f_sevk_hareket.to_excel(writer, index=False, sheet_name='Dönemsel Sevkiyat Çıkışları')
+        df_anlik_bakiye.to_excel(writer, index=False, sheet_name='Anlık Depo Bakiyeleri Özet')
+        f_depo_giris.to_excel(writer, index=False, sheet_name='Giriş Hareketleri Detay')
+        f_uretim_harcama.to_excel(writer, index=False, sheet_name='Üretim Tüketim Sarfiyat Detay')
+        f_mamul_depo.to_excel(writer, index=False, sheet_name='Mamul Üretim Giriş Detay')
+        f_sevk_hareket.to_excel(writer, index=False, sheet_name='Müşteri Sevkiyat İrsaliye Detay')
             
     return buffer.getvalue()
 # 3. YAN PANEL MENÜ SİSTEMİ
@@ -166,15 +180,18 @@ if sayfa == "📊 Genel Depo & Stok Durumu":
     with st.expander("🏭 5) ÜRÜN BAZLI SATIŞA HAZIR MAMUL DEPOSU İÇİN TIKLAYIN"):
         if st.session_state.mamul_depo:
             df_mamul = pd.DataFrame(st.session_state.mamul_depo)
-            df_sevk_matris = pd.DataFrame(st.session_state.sevkiyat_depo)
+            df_sevk_matris = pd.DataFrame(st.session_state.sevkiyat_depo) if st.session_state.sevkiyat_depo else pd.DataFrame(columns=["Ürün", "Sevk Edilen LOT", "Sevk Miktarı (Kg)"])
+            
             for urun_adi, urun_data in df_mamul.groupby("Ürün"):
                 toplam_sevk_edilen = df_sevk_matris[df_sevk_matris["Ürün"] == urun_adi]["Sevk Miktarı (Kg)"].sum() if not df_sevk_matris.empty else 0.0
                 toplam_uretim = urun_data["Miktar"].sum()
                 kalan_net_mamul = max(0.0, toplam_uretim - toplam_sevk_edilen)
                 st.write(f"**🔹 {urun_adi}** | Kalan Net Stok: **{kalan_net_mamul:,.1f} Kg**")
+                
                 lot_satirlari = []
                 for lot_no, lot_data in urun_data.groupby("Üretim LOT / Silo"):
                     l_uretim = lot_data["Miktar"].sum()
+                    # HATA DÜZELTİLDİ: 'lot_no balance' yazım hatası temizlendi
                     l_sevk = df_sevk_matris[(df_sevk_matris["Ürün"] == urun_adi) & (df_sevk_matris["Sevk Edilen LOT"] == lot_no)]["Sevk Miktarı (Kg)"].sum() if not df_sevk_matris.empty else 0.0
                     lot_satirlari.append({"Üretim LOT / Silo": lot_no, "Üretilen Hacim (Kg)": l_uretim, "Sevk Edilen (Kg)": l_sevk, "Kalan LOT Stoğu (Kg)": max(0.0, l_uretim - l_sevk)})
                 st.dataframe(pd.DataFrame(lot_satirlari), use_container_width=True)
@@ -207,10 +224,8 @@ elif sayfa == "🗂️ 0. Stok Kartı Tanımlama Sayfası":
             
     st.subheader("📋 Sistemde Kayıtlı Kart Listesi")
     for k, v in st.session_state.stok_kartlari.items():
-        # DÜZELTİLDİ: Tırnak çakışmasına sebep olan f-string yapısı temizlendi
         gosterim_listesi = []
-        for x in v:
-            gosterim_listesi.append(f"{x['Ad']} ({x['Birim']})")
+        for x in v: gosterim_listesi.append(f"{x['Ad']} ({x['Birim']})")
         st.write(f"**{k}:** {', '.join(gosterim_listesi)}")
 
 # ==========================================
@@ -308,8 +323,6 @@ elif sayfa == "🏭 3. Üretim Emri & Giriş Sayfası":
                     current_date_str = datetime.now().strftime("%Y-%m-%d %H:%M")
                     for h_adi, f_amt in fiili_girisler.items():
                         st.session_state.hammadde_kullanilan_toplam[h_adi] = st.session_state.hammadde_kullanilan_toplam.get(h_adi, 0.0) + f_amt
-                        if 'uretim_harcamalari_log' not in st.session_state:
-                            st.session_state.uretim_harcamalari_log = []
                         st.session_state.uretim_harcamalari_log.append({"Tarih": current_date_str, "Üretim LOT": u_lot, "Harcanan Malzeme": h_adi, "Miktar": f_amt, "Birim": malzeme_birimi_bul(h_adi)})
                     
                     if hedef_tur == "Ara Mamul Reçetesi":
@@ -328,7 +341,7 @@ elif sayfa == "🚚 4. Müşteri Sevkiyat Sayfası":
         st.warning("⚠️ Sevkiyat yapabilmek için mamul deposunda ürün bulunmalıdır. Lütfen önce üretim yapın.")
     else:
         df_mamul = pd.DataFrame(st.session_state.mamul_depo)
-        df_sevk_matris = pd.DataFrame(st.session_state.sevkiyat_depo)
+        df_sevk_matris = pd.DataFrame(st.session_state.sevkiyat_depo) if st.session_state.sevkiyat_depo else pd.DataFrame(columns=["Ürün", "Sevk Edilen LOT", "Sevk Miktarı (Kg)"])
         
         aktif_urunler = df_mamul["Ürün"].unique().tolist()
         secilen_sevk_urun = st.selectbox("Sevk Edilecek Mamul Ürünü Seçin", aktif_urunler)

@@ -67,55 +67,102 @@ def segment_stok_getir():
         güncel_stok[h_adi] = max(0.0, giren - kullanilan)
     return güncel_stok
 
-# --- HATALARI GİDERİLMİŞ DETAYLI EXCEL RAPOR MOTORU ---
+# --- KURUMSAL VE PROFESYONEL EXCEL MOTORU ---
 def endustriyel_excel_rapor_olustur(bas_tarih, bit_tarih):
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+
     buffer = io.BytesIO()
     
-    # Boş liste kontrolleriyle DataFrame oluşturma (Hata önleme)
     df_depo = pd.DataFrame(st.session_state.hammadde_depo) if st.session_state.hammadde_depo else pd.DataFrame(columns=["Giriş Tarihi", "Kategori", "Hammadde", "LOT No", "Miktar", "Birim"])
     df_harcama = pd.DataFrame(st.session_state.uretim_harcamalari_log) if st.session_state.uretim_harcamalari_log else pd.DataFrame(columns=["Tarih", "Üretim LOT", "Harcanan Malzeme", "Miktar", "Birim"])
     df_mamul = pd.DataFrame(st.session_state.mamul_depo) if st.session_state.mamul_depo else pd.DataFrame(columns=["Üretim Tarihi", "Ürün", "Üretim LOT / Silo", "Miktar"])
     df_sevk = pd.DataFrame(st.session_state.sevkiyat_depo) if st.session_state.sevkiyat_depo else pd.DataFrame(columns=["Sevkiyat Tarihi", "Müşteri", "İrsaliye No", "Plaka", "Ürün", "Sevk Edilen LOT", "Sevk Miktarı (Kg)"])
     
-    # Güvenli Tarih Filtreleme Fonksiyonu
     def tarih_filtrele_ve_temizle(df, tarih_kolonu):
-        if df.empty or tarih_kolonu not in df.columns: 
-            return df
+        if df.empty or tarih_kolonu not in df.columns: return df
         df_copy = df.copy()
-        # Saat damgalarını ayıklayıp sadece YYYY-MM-DD formatına indirger
         df_copy["temp_tarih"] = df_copy[tarih_kolonu].astype(str).apply(lambda x: x.split(" ")[0])
         df_copy["temp_tarih"] = pd.to_datetime(df_copy["temp_tarih"], errors='coerce').dt.date
         filtered_df = df_copy[(df_copy["temp_tarih"] >= bas_tarih) & (df_copy["temp_tarih"] <= bit_tarih)]
-        if "temp_tarih" in filtered_df.columns:
-            filtered_df = filtered_df.drop(columns=["temp_tarih"])
+        if "temp_tarih" in filtered_df.columns: filtered_df = filtered_df.drop(columns=["temp_tarih"])
         return filtered_df
 
-    # Tüm tabloları tarih aralığına göre süzüyoruz
     f_depo_giris = tarih_filtrele_ve_temizle(df_depo, "Giriş Tarihi")
     f_uretim_harcama = tarih_filtrele_ve_temizle(df_harcama, "Tarih")
     f_mamul_depo = tarih_filtrele_ve_temizle(df_mamul, "Üretim Tarihi")
     f_sevk_hareket = tarih_filtrele_ve_temizle(df_sevk, "Sevkiyat Tarihi")
     
-    # Anlık Stok Dengesi Matrisi
     stok_durumu = segment_stok_getir()
     bakiye_satirlari = []
     for malz, kalan_stok in stok_durumu.items():
         bakiye_satirlari.append({
-            "Malzeme / Ürün Adı": malz, 
-            "Anlık Mevcut Depo Stoğu": kalan_stok,
-            "Ölçü Birimi": malzeme_birimi_bul(malz), 
-            "Fabrika Toplantı Toplam Tüketim": st.session_state.hammadde_kullanilan_toplam.get(malz, 0.0)
+            "Malzeme / Ürün Adı": malz, "Anlık Mevcut Depo Stoğu": kalan_stok,
+            "Ölçü Birimi": malzeme_birimi_bul(malz), "Fabrika Kümülatif Toplam Tüketim": st.session_state.hammadde_kullanilan_toplam.get(malz, 0.0)
         })
-    df_anlik_bakiye = pd.DataFrame(bakiye_satirlari) if bakiye_satirlari else pd.DataFrame(columns=["Malzeme / Ürün Adı", "Anlık Mevcut Depo Stoğu", "Ölçü Birimi", "Fabrika Toplam Tüketim"])
+    df_anlik_bakiye = pd.DataFrame(bakiye_satirlari) if bakiye_satirlari else pd.DataFrame(columns=["Malzeme / Ürün Adı", "Anlık Mevcut Depo Stoğu", "Ölçü Birimi", "Fabrika Kümülatif Toplam Tüketim"])
 
-    # Tek Excel Dosyasına Çoklu Sheet Olarak Yazma
+    # openpyxl kurgusu ile kurumsal stilleri giydirme
     with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
         df_anlik_bakiye.to_excel(writer, index=False, sheet_name='Anlık Depo Bakiyeleri Özet')
         f_depo_giris.to_excel(writer, index=False, sheet_name='Giriş Hareketleri Detay')
         f_uretim_harcama.to_excel(writer, index=False, sheet_name='Üretim Tüketim Sarfiyat Detay')
         f_mamul_depo.to_excel(writer, index=False, sheet_name='Mamul Üretim Giriş Detay')
         f_sevk_hareket.to_excel(writer, index=False, sheet_name='Müşteri Sevkiyat İrsaliye Detay')
+        
+        # Stil Tasarımları
+        header_font = Font(name='Segoe UI', size=11, bold=True, color='FFFFFF')
+        header_fill = PatternFill(start_color='1F4E78', end_color='1F4E78', fill_type='solid') # Safir Mavi
+        data_font = Font(name='Segoe UI', size=10)
+        zebra_fill = PatternFill(start_color='F2F4F7', end_color='F2F4F7', fill_type='solid') # Hafif Gri
+        thin_side = Side(border_style="thin", color="D9D9D9")
+        thin_border = Border(left=thin_side, right=thin_side, top=thin_side, bottom=thin_side)
+        
+        for sheet_name in writer.sheets:
+            ws = writer.sheets[sheet_name]
+            ws.views.sheetView[0].showGridLines = True
             
+            # Başlık satırını biçimlendir
+            for cell in ws[1]:
+                cell.font = header_font
+                cell.fill = header_fill
+                cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+            ws.row_dimensions[1].height = 28
+            
+            # Veri satırlarını biçimlendir
+            for row_idx in range(2, ws.max_row + 1):
+                ws.row_dimensions[row_idx].height = 20
+                for col_idx in range(1, ws.max_column + 1):
+                    cell = ws.cell(row=row_idx, column=col_idx)
+                    cell.font = data_font
+                    cell.border = thin_border
+                    
+                    # Zebra şerit uygulaması
+                    if row_idx % 2 == 0: cell.fill = zebra_fill
+                    
+                    # Veri tipine ve ismine göre akıllı sağ-sol hizalama ve sayı biçimi
+                    val = cell.value
+                    col_name = str(ws.cell(row=1, column=col_idx).value)
+                    
+                    if isinstance(val, (int, float)):
+                        cell.alignment = Alignment(horizontal='right', vertical='center')
+                        if "Oran" in col_name or "İhtiyacı" in col_name: cell.number_format = '#,##0.000000'
+                        else: cell.number_format = '#,##0.0'
+                    elif "LOT" in col_name or "No" in col_name or "Plaka" in col_name or "Tarih" in col_name:
+                        cell.alignment = Alignment(horizontal='center', vertical='center')
+                    else:
+                        cell.alignment = Alignment(horizontal='left', vertical='center')
+            
+            # Otomatik sütun genişliği motoru
+            for col in ws.columns:
+                max_len = 0
+                col_letter = get_column_letter(col[0].column)
+                for cell in col:
+                    if cell.value:
+                        if isinstance(cell.value, float): max_len = max(max_len, 12)
+                        else: max_len = max(max_len, len(str(cell.value)))
+                ws.column_dimensions[col_letter].width = max(max_len + 4, 14)
+                
     return buffer.getvalue()
 # 3. YAN PANEL MENÜ SİSTEMİ
 st.sidebar.title("🧪 PET Resin ERP v2.6")
@@ -191,7 +238,6 @@ if sayfa == "📊 Genel Depo & Stok Durumu":
                 lot_satirlari = []
                 for lot_no, lot_data in urun_data.groupby("Üretim LOT / Silo"):
                     l_uretim = lot_data["Miktar"].sum()
-                    # HATA DÜZELTİLDİ: 'lot_no balance' yazım hatası temizlendi
                     l_sevk = df_sevk_matris[(df_sevk_matris["Ürün"] == urun_adi) & (df_sevk_matris["Sevk Edilen LOT"] == lot_no)]["Sevk Miktarı (Kg)"].sum() if not df_sevk_matris.empty else 0.0
                     lot_satirlari.append({"Üretim LOT / Silo": lot_no, "Üretilen Hacim (Kg)": l_uretim, "Sevk Edilen (Kg)": l_sevk, "Kalan LOT Stoğu (Kg)": max(0.0, l_uretim - l_sevk)})
                 st.dataframe(pd.DataFrame(lot_satirlari), use_container_width=True)
@@ -202,13 +248,13 @@ if sayfa == "📊 Genel Depo & Stok Durumu":
 # SAYFA: FABRİKA RAPORLAR SAYFASI
 # ==========================================
 elif sayfa == "📈 📊 Fabrika Raporlar Sayfası":
-    st.header("📈 📊 Dönemsel Fabrika Üretim ve Stok Hareketleri Rapor İstasyonu")
+    st.header("📈 📊 Dönemsel Fabrika Rapor İstasyonu")
     c_t1, c_t2 = st.columns(2)
     bas_secim = c_t1.date_input("Analiz Başlangıç Tarihi", value=date(2026, 1, 1))
     bit_secim = c_t2.date_input("Analiz Bitiş Tarihi", value=date(2026, 12, 31))
     if bas_secim <= bit_secim:
         excel_dosyası = endustriyel_excel_rapor_olustur(bas_secim, bit_secim)
-        st.download_button(label="📊 Fabrika Konsolide Genel Stok Raporunu İndir (.XLSX)", data=excel_dosyası, file_name=f"Fabrika_Sistem_Raporu_{bas_secim}_to_{bit_secim}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        st.download_button(label="📊 Fabrika Konsolide Profesyonel Raporu İndir (.XLSX)", data=excel_dosyası, file_name=f"Fabrika_Kurumsal_Rapor_{bas_secim}_to_{bit_secim}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 # ==========================================
 # SAYFA 0: BİRİMLİ STOK KARTI TANIMLAMA
 # ==========================================

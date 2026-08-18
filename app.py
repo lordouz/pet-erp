@@ -88,7 +88,7 @@ sayfa = st.sidebar.radio("Gitmek İstediğiniz Sayfa:", [
 # SAYFA: GENEL DEPO VE STOK DURUMU
 # ==========================================
 if sayfa == "📊 Genel Depo & Stok Durumu":
-    st.header("📊 Fabrika Segment Bazlı Anlık Depo Paneli")
+    st.header("📊 Fabrika Segment Base Anlık Depo Paneli")
     st.info("💡 Stok detaylarını ve dinamik birim miktarlarını görmek için aşağıdaki ilgili başlığa tıklayınız.")
     
     stok_dict = segment_stok_getir()
@@ -179,8 +179,7 @@ elif sayfa == "📥 1. Hammadde Giriş Sayfası":
     kat_turu = st.selectbox("Malzeme Kategorisi Seçin", ["Hammadde", "Yardımcı Kimyasal", "Ambalaj", "Ara Mamul"])
     uygun_malzemeler = [x["Ad"] for x in st.session_state.stok_kartlari.get(kat_turu, [])]
     
-    if not uygun_malzemeler:
-        st.info("Bu kategoride stok kartı bulunmuyor.")
+    if not uygun_malzemeler: st.info("Bu kategoride stok kartı bulunmuyor.")
     else:
         with st.form("hammadde_form"):
             g_tarih = st.date_input("Giriş Tarihi", value=datetime.now())
@@ -195,7 +194,7 @@ elif sayfa == "📥 1. Hammadde Giriş Sayfası":
                 st.success(f"✅ {h_turu} alındı."); st.rerun()
 
 # ==========================================
-# SAYFA 2: REÇETE OLUŞTURMA VE DÜZENLEME (6 BASAMAK ONDALIK GÜNCELLEMESİ)
+# SAYFA 2: REÇETE OLUŞTURMA VE DÜZENLEME (ARA MAMUL SEÇİMİ DİNAMİKLEŞTİRİLDİ!)
 # ==========================================
 elif sayfa == "📝 2. Reçete Oluşturma Sayfası":
     st.header("📝 Ürün Reçetesi (BOM) Yönetim İstasyonu")
@@ -219,7 +218,6 @@ elif sayfa == "📝 2. Reçete Oluşturma Sayfası":
     tab_ham, tab_kim, tab_amb, tab_ara = st.tabs(["🛠️ Hammaddeler", "🧪 Yardımcı Kimyasallar", "📦 Ambalaj", "⚙️ Ara Mamuller"])
     secilen_bom = {}
     
-    # Girdilerin formatları %.6f ve step katsayıları 0.000001 yapılarak ondalık hassasiyet büyütüldü
     with tab_ham:
         for kalem in st.session_state.stok_kartlari["Hammadde"]:
             val = st.number_input(f"{kalem['Ad']} İhtiyacı ({kalem['Birim']})", min_value=0.0, max_value=100.0, value=float(eski_bom.get(kalem['Ad'], 0.0)), step=0.000001, format="%.6f", key=f"r_ham_{kalem['Ad']}")
@@ -236,9 +234,21 @@ elif sayfa == "📝 2. Reçete Oluşturma Sayfası":
             if val > 0: secilen_bom[kalem['Ad']] = val
             
     with tab_ara:
-        for kalem in st.session_state.stok_kartlari["Ara Mamul"]:
-            val = st.number_input(f"{kalem['Ad']} İhtiyacı ({kalem['Birim']})", min_value=0.0, max_value=100.0, value=float(eski_bom.get(kalem['Ad'], 0.0)), step=0.000001, format="%.6f", key=f"r_ara_{kalem['Ad']}")
-            if val > 0: secilen_bom[kalem['Ad']] = val
+        # --- DİNAMİK ARA MAMUL TARAMA ALGORİTMASI ---
+        df_depo_ara = pd.DataFrame(st.session_state.hammadde_depo)
+        
+        # Stokta fiilen kayıtlı veya reaktörde üretilmiş olan tüm benzersiz Ara Mamul isimlerini çekiyoruz
+        stoktaki_ara_mamuller = []
+        if not df_depo_ara.empty:
+            stoktaki_ara_mamuller = df_depo_ara[df_depo_ara["Kategori"] == "Ara Mamul"]["Hammadde"].unique().tolist()
+            
+        # Sabit kartlardaki ara mamul listesiyle birleştirip tekil liste oluşturuyoruz
+        tum_aktif_ara_mamuller = list(set([x["Ad"] for x in st.session_state.stok_kartlari["Ara Mamul"]] + stoktaki_ara_mamuller))
+        
+        st.write("Sistemde/Stokta Algılanan Aktif Ara Mamul Üretim Kalemleri:")
+        for am_ad in tum_aktif_ara_mamuller:
+            val = st.number_input(f"{am_ad} İhtiyacı (Kg)", min_value=0.0, max_value=100.0, value=float(eski_bom.get(am_ad, 0.0)), step=0.000001, format="%.6f", key=f"r_ara_{am_ad}")
+            if val > 0: secilen_bom[am_ad] = val
 
     st.write("---")
     if st.button("💾 Değişiklikleri Kaydet ve Reçeteyi Güncelle" if operasyon_turu == "✏️ Mevcut Reçeteyi Gör ve Düzenle" else "➕ Yeni Reçeteyi Sisteme Kaydet"):
@@ -246,8 +256,7 @@ elif sayfa == "📝 2. Reçete Oluşturma Sayfası":
             guncel_recete = {"Reçete Adı": r_adi_input, "Tür": r_turu_input, "BOM": secilen_bom}
             if operasyon_turu == "✏️ Mevcut Reçeteyi Gör ve Düzenle" and duzenleme_indeksi is not None:
                 st.session_state.receteler[duzenleme_indeksi] = guncel_recete
-            else:
-                st.session_state.receteler.append(guncel_recete)
+            else: st.session_state.receteler.append(guncel_recete)
             st.success("✅ Reçete başarıyla işlendi!"); st.rerun()
 
 # ==========================================

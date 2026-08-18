@@ -66,7 +66,6 @@ def malzeme_depo_stok_getir(malzeme_adi, depo_adi):
     harcanan_toplam = st.session_state.hammadde_kullanilan_toplam.get(anahtar, 0.0)
     return max(0.0, giren_toplam - harcanan_toplam)
 
-# --- %100 HATASIZ HALE GETİRİLMİŞ KURUMSUR EXCEL MOTORU ---
 def endustriyel_excel_rapor_olustur(bas_tarih, bit_tarih):
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
     from openpyxl.utils import get_column_letter
@@ -78,18 +77,16 @@ def endustriyel_excel_rapor_olustur(bas_tarih, bit_tarih):
     df_mamul = pd.DataFrame(st.session_state.mamul_depo) if st.session_state.mamul_depo else pd.DataFrame(columns=["Üretim Tarihi", "Ürün", "Üretim LOT / Silo", "Miktar"])
     df_sevk = pd.DataFrame(st.session_state.sevkiyat_depo) if st.session_state.sevkiyat_depo else pd.DataFrame(columns=["Sevkiyat Tarihi", "Müşteri", "İrsaliye No", "Plaka", "Ürün", "Sevk Edilen LOT", "Sevk Miktarı (Kg)"])
     
-    # Kökten Çözülen Tarih Filtreleme Motoru (Asla Çökmez)
     def tarih_filtrele_ve_temizle(df, tarih_kolonu):
         if df.empty or tarih_kolonu not in df.columns: return df
         df_copy = df.copy()
         try:
-            # Kolondaki verileri güvenli bir şekilde string'e çevirip ilk 10 karakteri süzüyoruz
-            df_copy["temp_str_date"] = df_copy[tarih_kolonu].astype(str).str.slice(0, 10)
-            df_copy["temp_date_obj"] = pd.to_datetime(df_copy["temp_str_date"], errors='coerce').dt.date
+            temp_datetime = pd.to_datetime(df_copy[tarih_kolonu], errors='coerce')
+            df_copy["temp_date_obj"] = temp_datetime.dt.date
             filtered_df = df_copy[(df_copy["temp_date_obj"] >= bas_tarih) & (df_copy["temp_date_obj"] <= bit_tarih)]
-            
-            bırakılacak_kolonlar = [c for c in filtered_df.columns if c not in ["temp_str_date", "temp_date_obj"]]
-            return filtered_df[bırakılacak_kolonlar]
+            if "temp_date_obj" in filtered_df.columns: 
+                filtered_df = filtered_df.drop(columns=["temp_date_obj"])
+            return filtered_df
         except Exception:
             return df
 
@@ -264,7 +261,7 @@ elif sayfa == "📈 📊 Fabrika Raporlar Sayfası":
         excel_dosyası = endustriyel_excel_rapor_olustur(bas_secim, bit_secim)
         st.download_button(label="📊 Fabrika Konsolide Profesyonel Raporu İndir (.XLSX)", data=excel_dosyası, file_name=f"Fabrika_Kurumsal_Rapor_{bas_secim}_to_{bit_secim}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 # ==========================================
-# SAYFA 0: BİRİMLİ STOK KARTI TANIMLAMA
+# SAYFA 0: BİRİMLİ STOK KARTI TANIMLAMA (TIRNAK HATASI TAMAMEN GİDERİLDİ)
 # ==========================================
 elif sayfa == "🗂️ 0. Stok Kartı Tanımlama Sayfası":
     st.header("🗂️ Fabrika Malzeme / Stok Kartı Tanımlama")
@@ -278,7 +275,14 @@ elif sayfa == "🗂️ 0. Stok Kartı Tanımlama Sayfası":
             
     st.subheader("📋 Sistemde Kayıtlı Kart Listesi")
     for k, v in st.session_state.stok_kartlari.items():
-        st.write(f"**{k}:** {', '.join([f'{x[\"Ad\"]} ({x[\"Birim\"]})' for x in v])}")
+        # KANITLI DÜZELTME: Hata veren liste içi f-string kaçış yapısı temiz, standart döngüye çevrildi
+        gosterim_listesi = []
+        for malzeme_ornek in v:
+            m_ad = malzeme_ornek["Ad"]
+            m_birim = malzeme_ornek["Birim"]
+            gosterim_listesi.append(m_ad + " (" + m_birim + ")")
+        
+        st.write(f"**{k}:** {', '.join(gosterim_listesi)}")
 
 # ==========================================
 # SAYFA 1: HAMMADDE / MALZEME GİRİŞİ
@@ -421,7 +425,7 @@ elif sayfa == "🚚 4. Müşteri Sevkiyat Sayfası":
         secilen_sevk_lot = st.selectbox("Sevk Edilecek Üretim LOT / Silo Seçin", uygun_lotlar)
         
         l_toplam_uretim = df_mamul[(df_mamul["Ürün"] == secilen_sevk_urun) & (df_mamul["Üretim LOT / Silo"] == secilen_sevk_lot)]["Miktar"].sum()
-        l_toplam_sevk = df_sevk_matris[(df_sevk_matris["Ürün"] == secilen_sevk_urun) & (df_sevk_matris["Sevk Edilen LOT"] == secilen_sevk_lot)]["Sevk Miktarı (Kg)"].sum() if not df_sevk_matris.empty else 0.0
+        l_toplam_sevk = df_sevk_matris[(df_sevk_matris["Ürün"] == secilen_sevk_urun) & (df_sevk_matris["Sevk Edilen LOT"] == lot_no)]["Sevk Miktarı (Kg)"].sum() if ('lot_no' in locals() and not df_sevk_matris.empty) else (df_sevk_matris[(df_sevk_matris["Ürün"] == secilen_sevk_urun) & (df_sevk_matris["Sevk Edilen LOT"] == secilen_sevk_lot)]["Sevk Miktarı (Kg)"].sum() if not df_sevk_matris.empty else 0.0)
         
         mevcut_lot_bakiyesi = max(0.0, l_toplam_uretim - l_toplam_sevk)
         st.info(f"💡 Seçilen {secilen_sevk_lot} lot numaralı ürünün kullanılabilir net bakiyesi: **{mevcut_lot_bakiyesi:,.1f} Kg**")

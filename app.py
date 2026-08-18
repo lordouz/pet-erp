@@ -100,13 +100,16 @@ def endustriyel_excel_rapor_olustur(bas_tarih, bit_tarih):
     df_m_kontrol = pd.DataFrame(st.session_state.hammadde_depo)
     tum_malzemeler = df_m_kontrol["Hammadde"].unique().tolist() if not df_m_kontrol.empty else []
     for m in tum_malzemeler:
-        d1, d2, d3 = h1 if (h1 := malzeme_depo_stok_getir(m, "Depo 1")) else 0.0, h2 if (h2 := malzeme_depo_stok_getir(m, "Depo 2")) else 0.0, h3 if (h3 := malzeme_depo_stok_getir(m, "Depo 3")) else 0.0
+        d1 = h1 if (h1 := malzeme_depo_stok_getir(m, "Depo 1")) else 0.0
+        d2 = h2 if (h2 := malzeme_depo_stok_getir(m, "Depo 2")) else 0.0
+        d3 = h3 if (h3 := malzeme_depo_stok_getir(m, "Depo 3")) else 0.0
         bakiye_satirlari.append({
             "Malzeme / Ürün Adı": m, "Depo 1 Stok": d1, "Depo 2 Stok": d2, "Depo 3 Stok": d3,
             "Toplam Fabrika Stoğu": (d1 + d2 + d3), "Ölçü Birimi": malzeme_birimi_bul(m)
         })
     df_anlik_bakiye = pd.DataFrame(bakiye_satirlari) if bakiye_satirlari else pd.DataFrame(columns=["Malzeme / Ürün Adı", "Depo 1 Stok", "Depo 2 Stok", "Depo 3 Stok", "Toplam Fabrika Stoğu", "Ölçü Birimi"])
 
+    buffer = io.BytesIO()
     with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
         df_anlik_bakiye.to_excel(writer, index=False, sheet_name='Anlık Depolar Özet Matris')
         f_depo_giris.to_excel(writer, index=False, sheet_name='Giriş Hareketleri Detay')
@@ -200,9 +203,9 @@ elif sayfa == "📈 📊 Fabrika Raporlar Sayfası":
     bit_secim = c_t2.date_input("Analiz Bitiş Tarihi", value=date(2026, 12, 31))
     if bas_secim <= bit_secim:
         excel_dosyası = endustriyel_excel_rapor_olustur(bas_secim, bit_secim)
-        st.download_button(label="📊 Kurumsal Tasarımlı Excel Raporunu İndir (.XLSX)", data=excel_dosyası, file_name=f"Fabrika_Kurumsal_Rapor_{bas_secim}_to_{bit_secim}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        st.download_button(label="📊 Kurumsal Excel Raporunu İndir (.XLSX)", data=excel_dosyası, file_name=f"Fabrika_Kurumsal_Rapor_{bas_secim}_to_{bit_secim}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 # ==========================================
-# SAYFA 0: STOK KARTİ YÖNETİMİ
+# SAYFA 0: STOK KARTI TANIMLAMA & YÖNETİMİ
 # ==========================================
 elif sayfa == "🗂️ 0. Stok Kartı Tanımlama Sayfası":
     st.header("🗂️ Fabrika Malzeme / Stok Kartı Yönetim İstasyonu")
@@ -256,7 +259,6 @@ elif sayfa == "📥 1. Hammadde Giriş Sayfası":
             if st.form_submit_button("Malzemeyi Depoya Kabul Et") and h_lot:
                 st.session_state.hammadde_depo.append({"Giriş Tarihi": str(g_tarih), "Depo": hedef_depo_secim, "Kategori": kat_turu, "Hammadde": h_turu, "LOT No": h_lot, "Miktar": h_miktar, "Birim": malzeme_birimi_bul(h_turu)})
                 st.success("✅ Malzeme depoya alındı."); st.rerun()
-
 # ==========================================
 # SAYFA 1-B: MANUEL STOKTAN DÜŞÜM
 # ==========================================
@@ -278,11 +280,12 @@ elif sayfa == "📉 1-B. Manuel Stoktan Düşüm Sayfası":
                     st.session_state.hammadde_kullanilan_toplam[f"{m_sec}_{depo_sec}"] = st.session_state.hammadde_kullanilan_toplam.get(f"{m_sec}_{depo_sec}", 0.0) + dus_miktar
                     st.session_state.manuel_dusum_log.append({"Tarih": datetime.now().strftime("%Y-%m-%d %H:%M"), "Depo": depo_sec, "Malzeme": m_sec, "Miktar": dus_miktar, "Neden / Fire Tipi": neden_metni})
                     st.success("📉 Stok düşümü başarıyla kaydedildi!"); st.rerun()
+
 # ==========================================
 # SAYFA 1-C: DEPOLAR ARASI STOK AKTARIMI
 # ==========================================
 elif sayfa == "🔄 1-C. Depolar Arası Stok Aktarımı":
-    st.header("🔄 Depolar Arası Dahili Malzeme Aktarım Fişi")
+    st.header("🔄 Depolar Arası Dahili Malzeme Aktarım Fişi (Forklift / Lojistik)")
     df_d = pd.DataFrame(st.session_state.hammadde_depo)
     aktif_malz = df_d["Hammadde"].unique().tolist() if not df_d.empty else []
     if aktif_malz:
@@ -299,11 +302,10 @@ elif sayfa == "🔄 1-C. Depolar Arası Stok Aktarımı":
                 else:
                     st.session_state.hammadde_kullanilan_toplam[f"{trans_malz}_{k_depo}"] = st.session_state.hammadde_kullanilan_toplam.get(f"{trans_malz}_{k_depo}", 0.0) + trans_miktar
                     st.session_state.hammadde_depo.append({"Giriş Tarihi": datetime.now().strftime("%Y-%m-%d"), "Depo": h_depo, "Kategori": "Hammadde", "Hammadde": trans_malz, "LOT No": "TRF-LOT", "Miktar": trans_miktar, "Birim": malzeme_birimi_bul(trans_malz)})
-                    st.session_state.transfer_log.append({"Tarih": datetime.now().strftime("%Y-%m-%d %H:%M"), "Malzeme": trans_malz, "Kaynak Depo": k_depo, "Hedef Depo": h_depo, "Miktar": trans_miktar, "Birim": malzeme_birimi_bul(trans_malz)})
-                    st.success("🎉 Transfer tamamlandı!"); st.rerun()
-
+                    st.session_state.transfer_log.append({"Tarih": datetime.now().strftime("%Y-%m-%d %H:%M"), "Malzeme": trans_malz, "Kaynak Depo": k_depo, "Hedef Depo": h_depo, "Miktar": trans_miktar, "Birim": "malzeme_birimi_bul(trans_malz)" if not 'malzeme_birimi_bul' in locals() else malzeme_birimi_bul(trans_malz)})
+                    st.success(f"🎉 Malzeme başarıyla transfer edildi!"); st.rerun()
 # ==========================================
-# SAYFA 2: REÇETE OLUŞTURMA (KATEGORİ BAŞLIKLI - TAB YAPISINA GERİ DÖNDÜRÜLDÜ)
+# SAYFA 2: REÇETE OLUŞTURMA (KATEGORİ BAŞLIKLI TAB YAPISI)
 # ==========================================
 elif sayfa == "📝 2. Reçete Oluşturma Sayfası":
     st.header("📝 Ürün Reçetesi (BOM) Yönetim İstasyonu")
@@ -323,7 +325,6 @@ elif sayfa == "📝 2. Reçete Oluşturma Sayfası":
     r_adi_input = st.text_input("Reçete / Ürün Adı", value=r_adi_val)
     r_turu_input = st.selectbox("Reçete Sınıfı", ["Ara Mamul Reçetesi", "Mamul Reçetesi"], index=r_turu_idx)
     
-    # İSTEDİĞİNİZ KATEGORİ BAŞLIKLI TAB YAPISI YENİDEN ENTEGRE EDİLDİ
     tab_ham, tab_kim, tab_amb, tab_ara = st.tabs(["🛠️ Hammaddeler", "🧪 Yardımcı Kimyasallar", "📦 Ambalaj", "⚙️ Ara Mamuller"])
     secilen_bom = {}
     
@@ -356,7 +357,7 @@ elif sayfa == "📝 2. Reçete Oluşturma Sayfası":
 # SAYFA 3: ÜRETİM EMRİ & GİRİŞİ
 # ==========================================
 elif sayfa == "🏭 3. Üretim Emri & Giriş Sayfası":
-    st.header("🏭 Üretim Yönetim ve Reaktör Besleme Arayüzü")
+    st.header("🏭 Üretim Yönetim Arayüzü")
     u_kategori = st.radio("Üretim Sınıfı:", ["1) Ara Mamul Üretimi", "2) Mamul Üretimi"])
     hedef_tur = "Ara Mamul Reçetesi" if "1)" in u_kategori else "Mamul Reçetesi"
     uygun_receteler = [r for r in st.session_state.receteler if r.get("Tür") == hedef_tur]
@@ -389,7 +390,7 @@ elif sayfa == "🏭 3. Üretim Emri & Giriş Sayfası":
 # SAYFA 4: MÜŞTERİ SEVKİYAT
 # ==========================================
 elif sayfa == "🚚 4. Müşteri Sevkiyat Sayfası":
-    st.header("🚚 Müşteri Mamul Sevkiyat ve İrsaliye İstasyonu")
+    st.header("🚚 Müşteri Mamul Sevkiyat İstasyonu")
     if not st.session_state.mamul_depo: st.warning("⚠️ Sevkiyat yapabilmek için mamul deposunda ürün bulunmalıdır.")
     else:
         df_mamul = pd.DataFrame(st.session_state.mamul_depo)
@@ -398,3 +399,15 @@ elif sayfa == "🚚 4. Müşteri Sevkiyat Sayfası":
         secilen_sevk_lot = st.selectbox("Sevk Edilecek Üretim LOT / Silo", df_mamul[df_mamul["Ürün"] == secilen_sevk_urun]["Üretim LOT / Silo"].unique().tolist())
         l_toplam_uretim = df_mamul[(df_mamul["Ürün"] == secilen_sevk_urun) & (df_mamul["Üretim LOT / Silo"] == secilen_sevk_lot)]["Miktar"].sum()
         l_toplam_sevk = df_sevk_matris[(df_sevk_matris["Ürün"] == secilen_sevk_urun) & (df_sevk_matris["Sevk Edilen LOT"] == secilen_sevk_lot)]["Sevk Miktarı (Kg)"].sum() if not df_sevk_matris.empty else 0.0
+        mevcut_lot_bakiyesi = max(0.0, l_toplam_uretim - l_toplam_sevk)
+        st.info(f"💡 Kullanılabilir net bakiye: **{mevcut_lot_bakiyesi:,.1f} Kg**")
+        with st.form("sevkiyat_form"):
+            f_musteri, f_irsaliye = st.text_input("Müşteri Firma Adı"), st.text_input("İrsaliye Numarası")
+            f_plaka, f_sevk_miktar = st.text_input("Nakliye Araç Plakası"), st.number_input("Sevk Edilecek Net Miktar (Kg)", min_value=1.0, value=float(min(1000.0, mevcut_lot_bakiyesi)))
+            if st.form_submit_button("Sevkiyatı Onayla"):
+                if not f_musteri or not f_irsaliye: st.error("❌ Eksik alan var!")
+                elif f_sevk_miktar > mevcut_lot_bakiyesi: st.error("❌ Stok Yetersiz!")
+                else:
+                    st.session_state.sevkiyat_depo.append({"Sevkiyat Tarihi": datetime.now().strftime("%Y-%m-%d %H:%M"), "Müşteri": f_musteri, "İrsaliye No": f_irsaliye, "Plaka": f_plaka, "Ürün": secilen_sevk_urun, "Sevk Edilen LOT": secilen_sevk_lot, "Sevk Miktarı (Kg)": f_sevk_miktar})
+                    st.success("🎉 Sevkiyat tamamlandı!"); st.rerun()
+        if st.session_state.sevkiyat_depo: st.dataframe(pd.DataFrame(st.session_state.sevkiyat_depo), use_container_width=True)

@@ -29,17 +29,13 @@ if 'stok_kartlari' not in st.session_state:
         ]
     }
 
-# 2. MERKEZİ VERİ TABANI SİMÜLASYONU (Veri yapıları tamamen eşitlendi)
+# 2. MERKEZİ VERİ TABANI SİMÜLASYONU
 if 'hammadde_depo' not in st.session_state:
     st.session_state.hammadde_depo = [
         {"Giriş Tarihi": "2026-08-15", "Kategori": "Hammadde", "Hammadde": "PTA", "LOT No": "PTA-LOT-001", "Miktar": 100000.0, "Birim": "Kg"},
         {"Giriş Tarihi": "2026-08-15", "Kategori": "Hammadde", "Hammadde": "MEG", "LOT No": "MEG-LOT-001", "Miktar": 50000.0, "Birim": "Kg"},
-        {"Giriş Tarihi": "2026-08-15", "Kategori": "Hammadde", "Hammadde": "IPA", "LOT No": "IPA-LOT-001", "Miktar": 1500.0, "Birim": "Kg"},
-        {"Giriş Tarihi": "2026-08-15", "Kategori": "Hammadde", "Hammadde": "DEG", "LOT No": "DEG-LOT-001", "Miktar": 4000.0, "Birim": "Kg"},
         {"Giriş Tarihi": "2026-08-15", "Kategori": "Yardımcı Kimyasal", "Hammadde": "Antimon", "LOT No": "ANT-LOT-001", "Miktar": 5000.0, "Birim": "Kg"},
-        {"Giriş Tarihi": "2026-08-15", "Kategori": "Yardımcı Kimyasal", "Hammadde": "Fosforik Asit", "LOT No": "FOS-LOT-001", "Miktar": 2000.0, "Birim": "Kg"},
         {"Giriş Tarihi": "2026-08-15", "Kategori": "Ambalaj", "Hammadde": "PET Big Bag Çuval", "LOT No": "BB-LOT-01", "Miktar": 500.0, "Birim": "Adet"},
-        {"Giriş Tarihi": "2026-08-15", "Kategori": "Ambalaj", "Hammadde": "Ahşap Palet", "LOT No": "PLT-LOT-01", "Miktar": 200.0, "Birim": "Adet"},
         {"Giriş Tarihi": "2026-08-15", "Kategori": "Ara Mamul", "Hammadde": "Standart Amorf Chips", "LOT No": "AMF-LOT-00", "Miktar": 10000.0, "Birim": "Kg"}
     ]
 
@@ -97,8 +93,6 @@ if sayfa == "📊 Genel Depo & Stok Durumu":
     
     stok_dict = segment_stok_getir()
     df_merkez = pd.DataFrame(st.session_state.hammadde_depo)
-    
-    # Hata veren kat_rehber mekanizması güvenli hale getirildi
     kat_rehber = df_merkez.set_index("Hammadde")["Kategori"].to_dict() if not df_merkez.empty else {}
 
     # 1) Hammaddeler Başlığı
@@ -163,28 +157,19 @@ if sayfa == "📊 Genel Depo & Stok Durumu":
 # ==========================================
 elif sayfa == "🗂️ 0. Stok Kartı Tanımlama Sayfası":
     st.header("🗂️ Fabrika Malzeme / Stok Kartı Tanımlama")
-    
     with st.form("stok_kart_form"):
         k_kat = st.selectbox("Kartın Bağlanacağı Kategori", ["Hammadde", "Yardımcı Kimyasal", "Ambalaj", "Ara Mamul"])
-        k_adi = st.text_input("Yeni Malzeme / Stok Kartı Adı", placeholder="Örn: Katı Katalizör X-42")
+        k_adi = st.text_input("Yeni Malzeme / Stok Kartı Adı")
         k_birim = st.selectbox("Miktar Ölçü Birimi", ["Kg", "Adet", "Ton"])
         
         kart_submit = st.form_submit_button("Yeni Stok Kartını Sisteme Kaydet")
         if kart_submit:
             mevcut_isimler = [x["Ad"] for x in st.session_state.stok_kartlari[k_kat]]
-            if not k_adi:
-                st.error("❌ Kart adı boş bırakılamaz!")
-            elif k_adi in mevcut_isimler:
-                st.warning("⚠️ Bu malzeme kartı seçilen kategoride zaten mevcut!")
+            if not k_adi: st.error("❌ Kart adı boş bırakılamaz!")
+            elif k_adi in mevcut_isimler: st.warning("⚠️ Bu malzeme kartı zaten mevcut!")
             else:
                 st.session_state.stok_kartlari[k_kat].append({"Ad": k_adi, "Birim": k_birim})
-                st.success(f"✅ '{k_adi}' kartı ({k_birim}) başarıyla '{k_kat}' kategorisine eklendi.")
-                st.rerun()
-                
-    st.subheader("📋 Sistemde Kayıtlı Kart Listesi")
-    for k, v in st.session_state.stok_kartlari.items():
-        gosterim = [f"{x['Ad']} ({x['Birim']})" for x in v]
-        st.write(f"**{k}:** {', '.join(gosterim)}")
+                st.success(f"✅ '{k_adi}' kartı kaydedildi."); st.rerun()
 
 # ==========================================
 # SAYFA 1: HAMMADDE / MALZEME GİRİŞİ
@@ -192,86 +177,114 @@ elif sayfa == "🗂️ 0. Stok Kartı Tanımlama Sayfası":
 elif sayfa == "📥 1. Hammadde Giriş Sayfası":
     st.header("📥 Fabrika Depolarına Giriş Kabul Ekranı")
     kat_turu = st.selectbox("Malzeme Kategorisi Seçin", ["Hammadde", "Yardımcı Kimyasal", "Ambalaj", "Ara Mamul"])
-    
     uygun_malzemeler = [x["Ad"] for x in st.session_state.stok_kartlari.get(kat_turu, [])]
     
     if not uygun_malzemeler:
-        st.info("Bu kategoride henüz tanımlı stok kartı yok. Önce Kart Tanımlama sayfasından ekleyin.")
+        st.info("Bu kategoride stok kartı bulunmuyor.")
     else:
         with st.form("hammadde_form"):
             g_tarih = st.date_input("Giriş Tarihi", value=datetime.now())
             h_turu = st.selectbox("Malzeme / Kalem Adı", uygun_malzemeler)
             h_lot = st.text_input("Gelen LOT / Parti Numarası")
-            
             secilen_birim = malzeme_birimi_bul(h_turu)
             h_miktar = st.number_input(f"Gelen Miktar ({secilen_birim})", min_value=0.1, step=50.0, format="%.1f")
             
             submit = st.form_submit_button("Malzemeyi Depoya Kabul Et")
-            if submit:
-                if not h_lot:
-                    st.error("Lütfen bir LOT numarası girin!")
-                else:
-                    st.session_state.hammadde_depo.append({
-                        "Giriş Tarihi": str(g_tarih), "Kategori": kat_turu, "Hammadde": h_turu, "LOT No": h_lot, "Miktar": h_miktar, "Birim": secilen_birim
-                    })
-                    st.success(f"✅ {h_turu} depoya alındı."); st.rerun()
+            if submit and h_lot:
+                st.session_state.hammadde_depo.append({"Giriş Tarihi": str(g_tarih), "Kategori": kat_turu, "Hammadde": h_turu, "LOT No": h_lot, "Miktar": h_miktar, "Birim": secilen_birim})
+                st.success(f"✅ {h_turu} alındı."); st.rerun()
 
 # ==========================================
-# SAYFA 2: KATEGORİ SEKMELİ REÇETE OLUŞTURMA
+# SAYFA 2: REÇETE OLUŞTURMA VE DÜZENLEME (YENİLENDİ!)
 # ==========================================
 elif sayfa == "📝 2. Reçete Oluşturma Sayfası":
-    st.header("📝 Yeni Ürün Reçetesi (BOM) Tanımlama")
-    r_turu = st.selectbox("Reçete Sınıfı", ["Ara Mamul Reçetesi", "Mamul Reçetesi"])
-    r_adi = st.text_input("Reçete / Ürün Adı", placeholder="Örn: SSP Şişelik PET BOM")
+    st.header("📝 Ürün Reçetesi (BOM) Yönetim İstasyonu")
     
+    operasyon_turu = st.radio("Yapmak İstediğiniz İşlem:", ["➕ Yeni Reçete Oluştur", "✏️ Mevcut Reçeteyi Gör ve Düzenle"])
+    
+    # Varsayılan Form Ayarlarını Belirleme
+    r_adi = ""
+    r_turu = "Ara Mamul Reçetesi"
+    eski_bom = {}
+    duzenleme_indeksi = None
+    
+    if operasyon_turu == "✏️ Mevcut Reçeteyi Gör ve Düzenle":
+        if not st.session_state.receteler:
+            st.info("Sistemde henüz düzenlenebilecek bir reçete bulunmuyor. Önce yeni bir tane oluşturun.")
+        else:
+            recete_isimleri = [r["Reçete Adı"] for r in st.session_state.receteler]
+            secilen_r_adi = st.selectbox("Düzenlenecek Reçeteyi Seçin", recete_isimleri)
+            
+            # Seçilen reçetenin mevcut verilerini çekme
+            duzenleme_indeksi = next(idx for idx, r in enumerate(st.session_state.receteler) if r["Reçete Adı"] == secilen_r_adi)
+            hedef_recete = st.session_state.receteler[duzenleme_indeksi]
+            
+            r_adi = hedef_recete["Reçete Adı"]
+            r_turu = hedef_recete["Tür"]
+            eski_bom = hedef_recete["BOM"]
+            st.warning(f"⚠️ Şu an '{r_adi}' reçetesini düzenlemektesiniz. Yapacağınız değişiklikler eski oranların üzerine yazılacaktır.")
+
     st.write("---")
-    st.subheader("🧪 Kategori Bazlı Reçete Oran Girişleri")
+    # Dinamik veya yeni giriş formu başlığı
+    r_adi_input = st.text_input("Reçete / Ürün Adı", value=r_adi, placeholder="Örn: SSP Şişelik PET BOM")
+    r_turu_input = st.selectbox("Reçete Sınıfı", ["Ara Mamul Reçetesi", "Mamul Reçetesi"], index=0 if r_turu == "Ara Mamul Reçetesi" else 1)
     
+    st.write("**Kategori Bazlı Reçete Oran Girişleri:**")
     tab_ham, tab_kim, tab_amb, tab_ara = st.tabs(["🛠️ Hammaddeler", "🧪 Yardımcı Kimyasallar", "📦 Ambalaj", "⚙️ Ara Mamuller"])
     secilen_bom = {}
     
     with tab_ham:
         for kalem in st.session_state.stok_kartlari["Hammadde"]:
-            val = st.number_input(f"{kalem['Ad']} İhtiyacı ({kalem['Birim']})", min_value=0.0, max_value=100.0, value=0.0, step=0.001, format="%.3f", key=f"rec_ham_{kalem['Ad']}")
+            varsayilan_deger = float(eski_bom.get(kalem['Ad'], 0.0))
+            val = st.number_input(f"{kalem['Ad']} İhtiyacı ({kalem['Birim']})", min_value=0.0, max_value=100.0, value=varsayilan_deger, step=0.001, format="%.3f", key=f"r_ham_{kalem['Ad']}")
             if val > 0: secilen_bom[kalem['Ad']] = val
             
     with tab_kim:
         for kalem in st.session_state.stok_kartlari["Yardımcı Kimyasal"]:
-            val = st.number_input(f"{kalem['Ad']} İhtiyacı ({kalem['Birim']})", min_value=0.0, max_value=100.0, value=0.0, step=0.001, format="%.3f", key=f"rec_kim_{kalem['Ad']}")
+            varsayilan_deger = float(eski_bom.get(kalem['Ad'], 0.0))
+            val = st.number_input(f"{kalem['Ad']} İhtiyacı ({kalem['Birim']})", min_value=0.0, max_value=100.0, value=varsayilan_deger, step=0.001, format="%.3f", key=f"r_kim_{kalem['Ad']}")
             if val > 0: secilen_bom[kalem['Ad']] = val
             
     with tab_amb:
         for kalem in st.session_state.stok_kartlari["Ambalaj"]:
-            val = st.number_input(f"{kalem['Ad']} İhtiyacı ({kalem['Birim']})", min_value=0.0, max_value=100.0, value=0.0, step=0.001, format="%.3f", key=f"rec_amb_{kalem['Ad']}")
+            varsayilan_deger = float(eski_bom.get(kalem['Ad'], 0.0))
+            val = st.number_input(f"{kalem['Ad']} İhtiyacı ({kalem['Birim']})", min_value=0.0, max_value=100.0, value=varsayilan_deger, step=0.001, format="%.3f", key=f"r_amb_{kalem['Ad']}")
             if val > 0: secilen_bom[kalem['Ad']] = val
             
     with tab_ara:
         for kalem in st.session_state.stok_kartlari["Ara Mamul"]:
-            val = st.number_input(f"{kalem['Ad']} İhtiyacı ({kalem['Birim']})", min_value=0.0, max_value=100.0, value=0.0, step=0.001, format="%.3f", key=f"rec_ara_{kalem['Ad']}")
+            varsayilan_deger = float(eski_bom.get(kalem['Ad'], 0.0))
+            val = st.number_input(f"{kalem['Ad']} İhtiyacı ({kalem['Birim']})", min_value=0.0, max_value=100.0, value=varsayilan_deger, step=0.001, format="%.3f", key=f"r_ara_{kalem['Ad']}")
             if val > 0: secilen_bom[kalem['Ad']] = val
 
     st.write("---")
-    recete_kaydet_butonu = st.button("Tüm Sekmelerdeki Verilerle Reçeteyi Kaydet")
+    buton_metni = "💾 Değişiklikleri Kaydet ve Reçeteyi Güncelle" if operasyon_turu == "✏️ Mevcut Reçeteyi Gör ve Düzenle" else "➕ Yeni Reçeteyi Sisteme Kaydet"
+    recete_kaydet_butonu = st.button(buton_metni)
     
     if recete_kaydet_butonu:
-        if not r_adi: st.error("❌ Lütfen bir reçete adı girin!")
-        elif not secilen_bom: st.error("❌ Sekmelerin içine en az bir malzeme oranı girmelisiniz!")
+        if not r_adi_input: st.error("❌ Reçete adı boş bırakılamaz!")
+        elif not secilen_bom: st.error("❌ Reçeteye en az bir malzeme oranı eklemelisiniz!")
         else:
-            st.session_state.receteler.append({"Reçete Adı": r_adi, "Tür": r_turu, "BOM": secilen_bom})
-            st.success(f"✅ '{r_adi}' isimli {r_turu} başarıyla sisteme işlendi!")
+            guncel_recete = {"Reçete Adı": r_adi_input, "Tür": r_turu_input, "BOM": secilen_bom}
+            
+            if operasyon_turu == "✏️ Mevcut Reçeteyi Gör ve Düzenle" and duzenleme_indeksi is not None:
+                st.session_state.receteler[duzenleme_indeksi] = guncel_recete
+                st.success(f"✅ '{r_adi_input}' reçetesi başarıyla güncellendi (Revize Edildi)!")
+            else:
+                st.session_state.receteler.append(guncel_recete)
+                st.success(f"✅ '{r_adi_input}' isimli yeni reçete kaydedildi!")
+            st.rerun()
 
 # ==========================================
-# SAYFA 3: ÜRETİM EMRİ & GİRİŞİ (Yazım Hataları ve Listelemeler Tamamen Çözüldü)
+# SAYFA 3: ÜRETİM EMRİ & GİRİŞİ
 # ==========================================
 elif sayfa == "🏭 3. Üretim Emri & Giriş Sayfası":
     st.header("🏭 Üretim Yönetim ve Reaktör Besleme Arayüzü")
     u_kategori = st.radio("Yapılacak Üretim Sınıfı:", ["1) Ara Mamul Üretimi", "2) Mamul Üretimi"])
     hedef_tur = "Ara Mamul Reçetesi" if "1)" in u_kategori else "Mamul Reçetesi"
-    
     uygun_receteler = [r for r in st.session_state.receteler if r.get("Tür") == hedef_tur]
     
-    if not uygun_receteler:
-        st.warning(f"⚠️ Bu kategoride kayıtlı bir reçete bulunamadı.")
+    if not uygun_receteler: st.warning("⚠️ Kayıtlı bir reçete bulunamadı.")
     else:
         stok_dict = segment_stok_getir()
         secilen_recete_adi = st.selectbox("Kullanılacak Reçeteyi Seçin", [r["Reçete Adı"] for r in uygun_receteler])
@@ -286,23 +299,15 @@ elif sayfa == "🏭 3. Üretim Emri & Giriş Sayfası":
                 birim = malzeme_birimi_bul(h_adi)
                 fiili_girisler[h_adi] = st.number_input(f"{h_adi} Fiili Tüketim ({birim})", min_value=0.0, value=float(teorik))
                 
-            uretim_submit = st.form_submit_button("Üretimi Onayla")
-            if uretim_submit:
+            if st.form_submit_button("Üretimi Onayla"):
                 kontrol = True
-                eksikler = []
                 for h_adi, f_amt in fiili_girisler.items():
-                    if stok_dict.get(h_adi, 0.0) < f_amt:
-                        kontrol = False
-                        eksikler.append(f"{h_adi}")
-                
-                if not kontrol:
-                    st.error(f"❌ Stok Yetersiz! Eksikler: {', '.join(eksikler)}")
+                    if stok_dict.get(h_adi, 0.0) < f_amt: kontrol = False
+                if not kontrol: st.error("❌ Stok Yetersiz!")
                 else:
-                    for h_adi, f_amt in fiili_girisler.items():
-                        st.session_state.hammadde_kullanilan_toplam[h_adi] = st.session_state.hammadde_kullanilan_toplam.get(h_adi, 0.0) + f_amt
-                    
+                    for h_adi, f_amt in fiili_girisler.items(): st.session_state.hammadde_kullanilan_toplam[h_adi] = st.session_state.hammadde_kullanilan_toplam.get(h_adi, 0.0) + f_amt
                     if hedef_tur == "Ara Mamul Reçetesi":
                         st.session_state.hammadde_depo.append({"Giriş Tarihi": datetime.now().strftime("%Y-%m-%d"), "Kategori": "Ara Mamul", "Hammadde": secilen_recete_adi, "LOT No": u_lot, "Miktar": hedef_miktar, "Birim": "Kg"})
                     else:
                         st.session_state.mamul_depo.append({"Üretim Tarihi": datetime.now().strftime("%Y-%m-%d %H:%M"), "Ürün": secilen_recete_adi, "Üretim LOT / Silo": u_lot, "Miktar": hedef_miktar})
-                    st.success("🎉 Üretim başarıyla tamamlandı!"); st.rerun()
+                    st.success("🎉 Üretim tamamlandı!"); st.rerun()

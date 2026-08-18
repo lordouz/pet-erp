@@ -25,7 +25,7 @@ if 'stok_kartlari' not in st.session_state:
         ]
     }
 
-# 2. MERKEZİ VERİ TABANI MİMARİSİ
+# 2. MERKEZİ VERİ TABANI SİMÜLASYONU
 if 'hammadde_depo' not in st.session_state:
     st.session_state.hammadde_depo = [
         {"Giriş Tarihi": "2026-08-15", "Depo": "Depo 1", "Kategori": "Hammadde", "Hammadde": "PTA", "LOT No": "PTA-LOT-001", "Miktar": 100000.0, "Birim": "Kg"},
@@ -52,7 +52,6 @@ if 'sevkiyat_depo' not in st.session_state:
 if 'uretim_harcamalari_log' not in st.session_state:
     st.session_state.uretim_harcamalari_log = []
 
-# Yeni Eklenen Transfer ve Manuel Düşüm Log Mekanizmaları
 if 'transfer_log' not in st.session_state:
     st.session_state.transfer_log = []
 
@@ -73,10 +72,8 @@ def malzeme_depo_stok_getir(malzeme_adi, depo_adi):
     harcanan_toplam = st.session_state.hammadde_kullanilan_toplam.get(anahtar, 0.0)
     return max(0.0, giren_toplam - harcanan_toplam)
 
-# --- BOZULMAYAN VE GÜVENLİ RENKLİ KURUMSAL EXCEL MOTORU ---
+# --- GERÇEK KURUMSAL TASARIMLI (YENİLENEN) EXCEL MOTORU ---
 def endustriyel_excel_rapor_olustur(bas_tarih, bit_tarih):
-    buffer = io.BytesIO()
-    
     df_depo = pd.DataFrame(st.session_state.hammadde_depo) if st.session_state.hammadde_depo else pd.DataFrame(columns=["Giriş Tarihi", "Depo", "Kategori", "Hammadde", "LOT No", "Miktar", "Birim"])
     df_harcama = pd.DataFrame(st.session_state.uretim_harcamalari_log) if st.session_state.uretim_harcamalari_log else pd.DataFrame(columns=["Tarih", "Harcanan Depo", "Üretim LOT", "Harcanan Malzeme", "Miktar", "Birim"])
     df_mamul = pd.DataFrame(st.session_state.mamul_depo) if st.session_state.mamul_depo else pd.DataFrame(columns=["Üretim Tarihi", "Ürün", "Üretim LOT / Silo", "Miktar"])
@@ -104,26 +101,58 @@ def endustriyel_excel_rapor_olustur(bas_tarih, bit_tarih):
     df_m_kontrol = pd.DataFrame(st.session_state.hammadde_depo)
     tum_malzemeler = df_m_kontrol["Hammadde"].unique().tolist() if not df_m_kontrol.empty else []
     for m in tum_malzemeler:
-        d1 = malzeme_depo_stok_getir(m, "Depo 1")
-        d2 = malzeme_depo_stok_getir(m, "Depo 2")
-        d3 = malzeme_depo_stok_getir(m, "Depo 3")
+        d1, d2, d3 = h1 if (h1 := malzeme_depo_stok_getir(m, "Depo 1")) else 0.0, h2 if (h2 := malzeme_depo_stok_getir(m, "Depo 2")) else 0.0, h3 if (h3 := malzeme_depo_stok_getir(m, "Depo 3")) else 0.0
         bakiye_satirlari.append({
             "Malzeme / Ürün Adı": m, "Depo 1 Stok": d1, "Depo 2 Stok": d2, "Depo 3 Stok": d3,
             "Toplam Fabrika Stoğu": (d1 + d2 + d3), "Ölçü Birimi": malzeme_birimi_bul(m)
         })
     df_anlik_bakiye = pd.DataFrame(bakiye_satirlari) if bakiye_satirlari else pd.DataFrame(columns=["Malzeme / Ürün Adı", "Depo 1 Stok", "Depo 2 Stok", "Depo 3 Stok", "Toplam Fabrika Stoğu", "Ölçü Birimi"])
 
-    # HTML Tablo Stilleme Üzerinden Çökmeyen Profesyonel Excel Tasarımı (Kurumsal Safir Renkli Düzen)
-    with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
-        df_anlik_bakiye.to_excel(writer, index=False, sheet_name='Anlık Depolar Özet Matris')
-        f_depo_giris.to_excel(writer, index=False, sheet_name='Giriş Hareketleri Detay')
-        f_uretim_harcama.to_excel(writer, index=False, sheet_name='Üretim Sarfiyat Detay')
-        f_mamul_depo.to_excel(writer, index=False, sheet_name='Mamul Üretim Çıktı Detay')
-        f_sevk_hareket.to_excel(writer, index=False, sheet_name='Müşteri Sevkiyat Detay')
-        f_trans_hareket.to_excel(writer, index=False, sheet_name='Dahili Depo Transferleri')
-        f_man_dus_hareket.to_excel(writer, index=False, sheet_name='Manuel Fire ve Düşümler')
-                
-    return buffer.getvalue()
+    # GERÇEK RENKLİ TASARIM: HTML/CSS tabloları birleştirilerek Excel'in algılayacağı saf kurumsal yapı kurulur
+    html_output = "<html><head><meta charset='utf-8'><style>"
+    html_output += "table { font-family: 'Segoe UI', Arial, sans-serif; border-collapse: collapse; margin-bottom: 30px; width: 100%; }"
+    html_output += "th { background-color: #1F4E78; color: white; padding: 12px 15px; font-size: 11pt; font-weight: bold; border: 1px solid #D9D9D9; text-align: center; }"
+    html_output += "td { padding: 8px 12px; font-size: 10pt; border: 1px solid #D9D9D9; vertical-align: middle; }"
+    html_output += "tr:nth-child(even) { background-color: #F2F4F7; }" # Zebra şerit gri renk
+    html_output += "h2 { font-family: 'Segoe UI', Arial, sans-serif; color: #1F4E78; border-bottom: 2px solid #1F4E78; padding-bottom: 5px; }"
+    html_output += "</style></head><body>"
+    
+    tablolar = [
+        ("1. FABRİKA ANLIK DEPOLAR ÖZET MATRİSİ", df_anlik_bakiye),
+        ("2. MALZEME GİRİŞ HAREKETLERİ DETAY RAPORU", f_depo_giris),
+        ("3. FİİLİ ÜRETİM TÜKETİM VE SARFİYAT GÜNLÜĞÜ", f_uretim_harcama),
+        ("4. BİTMİŞ MAMUL ÜRETİM GİRİŞ DETAYLARI", f_mamul_depo),
+        ("5. MÜŞTERİ SEVKİYAT VE İRSALİYE GÜNLÜĞÜ", f_sevk_hareket),
+        ("6. DAHİLİ DEPOLAR ARASI TRANSFER HAREKETLERİ", f_trans_hareket),
+        ("7. DEPO MANUEL FİRE VE DÜŞÜM LOGLARI", f_man_dus_hareket)
+    ]
+    
+    for baslik, table_df in tablolar:
+        html_output += f"<h2>{baslik}</h2>"
+        if table_df.empty:
+            html_output += "<p style='font-family:Segoe UI; font-size:10pt; color:#7F7F7F;'>Seçilen tarih aralığında kayıtlı veri bulunmuyor.</p>"
+        else:
+            html_output += "<table><thead><tr>"
+            for col in table_df.columns:
+                html_output += f"<th>{col}</th>"
+            html_output += "</tr></thead><tbody>"
+            
+            for _, row in table_df.iterrows():
+                html_output += "<tr>"
+                for col_name, val in row.items():
+                    # Sayısal muhasebe biçimlendirmesi ve sağa yaslama
+                    if isinstance(val, (int, float)):
+                        fmt_val = f"{val:,.6f}" if "Oran" in str(col_name) else f"{val:,.1f}"
+                        html_output += f"<td style='text-align: right;'>{fmt_val}</td>"
+                    elif any(k in str(col_name) for k in ["LOT", "No", "Plaka", "Tarih", "Depo"]):
+                        html_output += f"<td style='text-align: center;'>{str(val)}</td>"
+                    else:
+                        html_output += f"<td>{str(val)}</td>"
+                html_output += "</tr>"
+            html_output += "</tbody></table><br>"
+            
+    html_output += "</body></html>"
+    return html_output.encode('utf-8')
 # 3. YAN PANEL MENÜ SİSTEMİ
 st.sidebar.title("🧪 PET Resin ERP v2.6")
 st.sidebar.write("---")
@@ -206,14 +235,14 @@ elif sayfa == "📈 📊 Fabrika Raporlar Sayfası":
     bas_secim = c_t1.date_input("Analiz Başlangıç Tarihi", value=date(2026, 1, 1))
     bit_secim = c_t2.date_input("Analiz Bitiş Tarihi", value=date(2026, 12, 31))
     if bas_secim <= bit_secim:
+        # Değişiklik: Sunucu uyumluluğu ve kurumsal tasarım için .XLS döküm formatı giydirildi
         excel_dosyası = endustriyel_excel_rapor_olustur(bas_secim, bit_secim)
-        st.download_button(label="📊 Kurumsal Renkli Raporu İndir (.XLSX)", data=excel_dosyası, file_name=f"Fabrika_Sistem_Raporu_{bas_secim}_to_{bit_secim}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        st.download_button(label="📊 Kurumsal Tasarımlı Excel Raporunu İndir (.XLS)", data=excel_dosyası, file_name=f"Fabrika_Kurumsal_Rapor_{bas_secim}_to_{bit_secim}.xls", mime="application/vnd.ms-excel")
 # ==========================================
-# SAYFA 0: STOK KARTI YÖNETİMİ (SİLME VE DÜZELTME EKLENDİ)
+# SAYFA 0: STOK KARTI TANIMLAMA & YÖNETİMİ
 # ==========================================
 elif sayfa == "🗂️ 0. Stok Kartı Tanımlama Sayfası":
     st.header("🗂️ Fabrika Malzeme / Stok Kartı Yönetim İstasyonu")
-    
     islem_tipi = st.tabs(["➕ Yeni Stok Kartı Ekle", "✏️ / ❌ Mevcut Kartları Düzenle & Sil"])
     
     with islem_tipi[0]:
@@ -229,7 +258,6 @@ elif sayfa == "🗂️ 0. Stok Kartı Tanımlama Sayfası":
         st.subheader("🛠️ Kart Düzenleme ve Silme Paneli")
         kat_sec = st.selectbox("Kategori Seçin", ["Hammadde", "Yardımcı Kimyasal", "Ambalaj", "Ara Mamul"], key="kat_sec_duz")
         kart_listesi = st.session_state.stok_kartlari.get(kat_sec, [])
-        
         if kart_listesi:
             kart_adlari = [x["Ad"] for x in kart_listesi]
             secilen_kart_ad = st.selectbox("Düzenlenecek / Silinecek Kart", kart_adlari)
@@ -243,7 +271,6 @@ elif sayfa == "🗂️ 0. Stok Kartı Tanımlama Sayfası":
             if col_b1.button("💾 Değişiklikleri Güncelle"):
                 st.session_state.stok_kartlari[kat_sec][kart_idx] = {"Ad": yeni_ad, "Birim": yeni_birim}
                 st.success("Kart başarıyla güncellendi!"); st.rerun()
-                
             if col_b2.button("❌ Stok Kartını Sistemden Tamamen Sil"):
                 st.session_state.stok_kartlari[kat_sec].pop(kart_idx)
                 st.warning("Stok kartı başarıyla sistemden silindi!"); st.rerun()
@@ -268,55 +295,46 @@ elif sayfa == "📥 1. Hammadde Giriş Sayfası":
                 st.success("✅ Malzeme depoya alındı."); st.rerun()
 
 # ==========================================
-# SAYFA 1-B: MANUEL STOKTAN DÜŞÜM (YENİ MODÜL)
+# SAYFA 1-B: MANUEL STOKTAN DÜŞÜM
 # ==========================================
 elif sayfa == "📉 1-B. Manuel Stoktan Düşüm Sayfası":
     st.header("📉 Depolardan Manuel Stok Düşüm ve Fire Giriş Ekranı")
-    stok_dict = malzeme_depo_stok_getir
     df_d = pd.DataFrame(st.session_state.hammadde_depo)
     aktif_malz = df_d["Hammadde"].unique().tolist() if not df_d.empty else []
-    
     if aktif_malz:
         m_sec = st.selectbox("Stoktan Düşülecek Malzemeyi Seçin", aktif_malz)
         depo_sec = st.selectbox("Hangi Depodan Düşülecek?", ["Depo 1", "Depo 2", "Depo 3"])
         current_bakiye = malzeme_depo_stok_getir(m_sec, depo_sec)
         st.info(f"💡 Seçilen {m_sec} malzemesinin {depo_sec} alanındaki güncel bakiyesi: **{current_bakiye:,.1f} {malzeme_birimi_bul(m_sec)}**")
-        
         with st.form("manuel_dus_form"):
             dus_miktar = st.number_input("Düşülecek Fire / Sarfiyat Miktarı", min_value=0.1, value=float(min(10.0, current_bakiye)))
             neden_metni = st.selectbox("Düşüm / Fire Nedeni", ["Kullanım Süresi Dolması", "Saha Firesi / Dökülme", "Laboratuvar Analiz Sarfiyatı", "Düzeltme Fişi"])
             if st.form_submit_button("Stoktan Manuel Düşümü Onayla"):
                 if dus_miktar > current_bakiye: st.error("❌ Kalan stoktan fazla düşüm yapılamaz!")
                 else:
-                    anahtar = f"{m_sec}_{depo_sec}"
-                    st.session_state.hammadde_kullanilan_toplam[anahtar] = st.session_state.hammadde_kullanilan_toplam.get(anahtar, 0.0) + dus_miktar
+                    st.session_state.hammadde_kullanilan_toplam[f"{m_sec}_{depo_sec}"] = st.session_state.hammadde_kullanilan_toplam.get(f"{m_sec}_{depo_sec}", 0.0) + dus_miktar
                     st.session_state.manuel_dusum_log.append({"Tarih": datetime.now().strftime("%Y-%m-%d %H:%M"), "Depo": depo_sec, "Malzeme": m_sec, "Miktar": dus_miktar, "Neden / Fire Tipi": neden_metni})
                     st.success("📉 Stok düşümü başarıyla kaydedildi!"); st.rerun()
 # ==========================================
-# SAYFA 1-C: DEPOLAR ARASI STOK AKTARIMI (YENİ MODÜL)
+# SAYFA 1-C: DEPOLAR ARASI STOK AKTARIMI
 # ==========================================
 elif sayfa == "🔄 1-C. Depolar Arası Stok Aktarımı":
     st.header("🔄 Depolar Arası Dahili Malzeme Aktarım Fişi (Forklift / Lojistik)")
     df_d = pd.DataFrame(st.session_state.hammadde_depo)
     aktif_malz = df_d["Hammadde"].unique().tolist() if not df_d.empty else []
-    
     if aktif_malz:
         trans_malz = st.selectbox("Sevk Edilecek Malzemeyi Seçin", aktif_malz)
         k_depo = st.selectbox("Kaynak Depo (Çıkış)", ["Depo 1", "Depo 2", "Depo 3"])
         h_depo = st.selectbox("Hedef Depo (Giriş)", ["Depo 1", "Depo 2", "Depo 3"])
-        
         current_bakiye = malzeme_depo_stok_getir(trans_malz, k_depo)
         st.info(f"💡 {trans_malz} malzemesinin {k_depo} alanındaki taşınabilir bakiyesi: **{current_bakiye:,.1f} {malzeme_birimi_bul(trans_malz)}**")
-        
         with st.form("transfer_form"):
             trans_miktar = st.number_input("Sevk Edilecek Miktar", min_value=0.1, value=float(min(50.0, current_bakiye)))
             if st.form_submit_button("Depolar Arası Sevkiyatı Başlat"):
                 if k_depo == h_depo: st.error("❌ Kaynak ve hedef depo aynı olamaz!")
                 elif trans_miktar > current_bakiye: st.error("❌ Kaynak depoda yeterli stok yok!")
                 else:
-                    # Kaynak depodan stok düşüyoruz
                     st.session_state.hammadde_kullanilan_toplam[f"{trans_malz}_{k_depo}"] = st.session_state.hammadde_kullanilan_toplam.get(f"{trans_malz}_{k_depo}", 0.0) + trans_miktar
-                    # Hedef depoya giriş fişi oluşturuyoruz (LOT No 'TRANSFER' ekiyle korunur)
                     st.session_state.hammadde_depo.append({"Giriş Tarihi": datetime.now().strftime("%Y-%m-%d"), "Depo": h_depo, "Kategori": "Hammadde", "Hammadde": trans_malz, "LOT No": "TRF-LOT", "Miktar": trans_miktar, "Birim": malzeme_birimi_bul(trans_malz)})
                     st.session_state.transfer_log.append({"Tarih": datetime.now().strftime("%Y-%m-%d %H:%M"), "Malzeme": trans_malz, "Kaynak Depo": k_depo, "Hedef Depo": h_depo, "Miktar": trans_miktar, "Birim": malzeme_birimi_bul(trans_malz)})
                     st.success(f"🎉 Malzeme {k_depo}'dan {h_depo} alanına başarıyla transfer edildi!"); st.rerun()

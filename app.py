@@ -205,13 +205,15 @@ elif sayfa == "📈 📊 Fabrika Raporlar Sayfası":
         excel_dosyası = endustriyel_excel_rapor_olustur(bas_secim, bit_secim)
         st.download_button(label="📊 Kurumsal Excel Raporunu İndir (.XLSX)", data=excel_dosyası, file_name=f"Fabrika_Kurumsal_Rapor_{bas_secim}_to_{bit_secim}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 # ==========================================
-# SAYFA 0: STOK KARTI TANIMLAMA & YÖNETİMİ
+# SAYFA 0: STOK KARTI TANIMLAMA & YÖNETİMİ (TypeError KESİN OLARAK ÇÖZÜLDÜ)
 # ==========================================
 elif sayfa == "🗂️ 0. Stok Kartı Tanımlama Sayfası":
     st.header("🗂️ Fabrika Malzeme / Stok Kartı Yönetim İstasyonu")
-    islem_tipi = st.tabs(["➕ Yeni Stok Kartı Ekle", "✏️ / ❌ Mevcut Kartları Düzenle & Sil"])
     
-    with islem_tipi:
+    # DÜZELTME: islem_tipi tab yapısı with bloğu yerine alt sekmelere atanarak çağrıldı
+    tab_ekle, tab_yonet = st.tabs(["➕ Yeni Stok Kartı Ekle", "✏️ / ❌ Mevcut Kartları Düzenle & Sil"])
+    
+    with tab_ekle:
         with st.form("stok_kart_form"):
             k_kat = st.selectbox("Kartın Bağlanacağı Kategori", ["Hammadde", "Yardımcı Kimyasal", "Ambalaj", "Ara Mamul"])
             k_adi = st.text_input("Yeni Malzeme / Stok Kartı Adı")
@@ -220,7 +222,7 @@ elif sayfa == "🗂️ 0. Stok Kartı Tanımlama Sayfası":
                 st.session_state.stok_kartlari[k_kat].append({"Ad": k_adi, "Birim": k_birim})
                 st.success(f"✅ '{k_adi}' kartı eklendi."); st.rerun()
                 
-    with islem_tipi:
+    with tab_yonet:
         st.subheader("🛠️ Kart Düzenleme ve Silme Paneli")
         kat_sec = st.selectbox("Kategori Seçin", ["Hammadde", "Yardımcı Kimyasal", "Ambalaj", "Ara Mamul"], key="kat_sec_duz")
         kart_listesi = st.session_state.stok_kartlari.get(kat_sec, [])
@@ -302,7 +304,7 @@ elif sayfa == "🔄 1-C. Depolar Arası Stok Aktarımı":
                 else:
                     st.session_state.hammadde_kullanilan_toplam[f"{trans_malz}_{k_depo}"] = st.session_state.hammadde_kullanilan_toplam.get(f"{trans_malz}_{k_depo}", 0.0) + trans_miktar
                     st.session_state.hammadde_depo.append({"Giriş Tarihi": datetime.now().strftime("%Y-%m-%d"), "Depo": h_depo, "Kategori": "Hammadde", "Hammadde": trans_malz, "LOT No": "TRF-LOT", "Miktar": trans_miktar, "Birim": malzeme_birimi_bul(trans_malz)})
-                    st.session_state.transfer_log.append({"Tarih": datetime.now().strftime("%Y-%m-%d %H:%M"), "Malzeme": trans_malz, "Kaynak Depo": k_depo, "Hedef Depo": h_depo, "Miktar": trans_miktar, "Birim": "malzeme_birimi_bul(trans_malz)" if not 'malzeme_birimi_bul' in locals() else malzeme_birimi_bul(trans_malz)})
+                    st.session_state.transfer_log.append({"Tarih": datetime.now().strftime("%Y-%m-%d %H:%M"), "Malzeme": trans_malz, "Kaynak Depo": k_depo, "Hedef Depo": h_depo, "Miktar": trans_miktar, "Birim": malzeme_birimi_bul(trans_malz)})
                     st.success(f"🎉 Malzeme başarıyla transfer edildi!"); st.rerun()
 # ==========================================
 # SAYFA 2: REÇETE OLUŞTURMA (KATEGORİ BAŞLIKLI TAB YAPISI)

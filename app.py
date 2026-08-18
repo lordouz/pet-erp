@@ -66,30 +66,28 @@ def malzeme_depo_stok_getir(malzeme_adi, depo_adi):
     harcanan_toplam = st.session_state.hammadde_kullanilan_toplam.get(anahtar, 0.0)
     return max(0.0, giren_toplam - harcanan_toplam)
 
-# --- %100 KORUMALI VE PROFESYONEL EXCEL RAPOR MOTORU ---
+# --- LINE 129 VE TARİH CHATALARI GİDERİLMİŞ YENİ EXCEL MOTORU ---
 def endustriyel_excel_rapor_olustur(bas_tarih, bit_tarih):
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
     from openpyxl.utils import get_column_letter
 
     buffer = io.BytesIO()
     
-    # Varsayılan kolonlarla şablon DataFrame'ler (Tarih filtreleme çökmesini engeller)
     df_depo = pd.DataFrame(st.session_state.hammadde_depo) if st.session_state.hammadde_depo else pd.DataFrame(columns=["Giriş Tarihi", "Depo", "Kategori", "Hammadde", "LOT No", "Miktar", "Birim"])
     df_harcama = pd.DataFrame(st.session_state.uretim_harcamalari_log) if st.session_state.uretim_harcamalari_log else pd.DataFrame(columns=["Tarih", "Harcanan Depo", "Üretim LOT", "Harcanan Malzeme", "Miktar", "Birim"])
     df_mamul = pd.DataFrame(st.session_state.mamul_depo) if st.session_state.mamul_depo else pd.DataFrame(columns=["Üretim Tarihi", "Ürün", "Üretim LOT / Silo", "Miktar"])
     df_sevk = pd.DataFrame(st.session_state.sevkiyat_depo) if st.session_state.sevkiyat_depo else pd.DataFrame(columns=["Sevkiyat Tarihi", "Müşteri", "İrsaliye No", "Plaka", "Ürün", "Sevk Edilen LOT", "Sevk Miktarı (Kg)"])
     
-    # Hata Geçirmez Vektörel Tarih Filtreleme Mekanizması
+    # %100 Kararlı Tarih Süzme İstasyonu
     def tarih_filtrele_ve_temizle(df, tarih_kolonu):
-        if df.empty or tarih_kolonu not in df.columns: 
-            return df
+        if df.empty or tarih_kolonu not in df.columns: return df
         df_copy = df.copy()
-        # Tarih hücresini stringe çevirip ilk 10 hanesini (YYYY-MM-DD) alarak zaman damgasına dönüştürür
-        df_copy["temp_date_convert"] = pd.to_datetime(df_copy[tarih_kolonu].astype(str).str.slice(0, 10), errors='coerce').dt.date
-        filtered_df = df_copy[(df_copy["temp_date_convert"] >= bas_tarih) & (df_copy["temp_date_convert"] <= bit_tarih)]
-        
-        bırakılacaklar = [c for c in filtered_df.columns if c != "temp_date_convert"]
-        return filtered_df[bırakılacaklar]
+        try:
+            df_copy["temp_date"] = pd.to_datetime(df_copy[tarih_kolonu].astype(str).str.slice(0, 10), errors='coerce').dt.date
+            filtered_df = df_copy[(df_copy["temp_date"] >= bas_tarih) & (df_copy["temp_date"] <= bit_tarih)]
+            return filtered_df.drop(columns=["temp_date"])
+        except Exception:
+            return df
 
     f_depo_giris = tarih_filtrele_ve_temizle(df_depo, "Giriş Tarihi")
     f_uretim_harcama = tarih_filtrele_ve_temizle(df_harcama, "Tarih")
@@ -116,45 +114,51 @@ def endustriyel_excel_rapor_olustur(bas_tarih, bit_tarih):
         f_mamul_depo.to_excel(writer, index=False, sheet_name='Mamul Üretim Giriş Detay')
         f_sevk_hareket.to_excel(writer, index=False, sheet_name='Müşteri Sevkiyat İrsaliye Detay')
         
-        # Endüstriyel Tasarım Paleti
+        # Tasarım Nesneleri
         header_font = Font(name='Segoe UI', size=11, bold=True, color='FFFFFF')
-        header_fill = PatternFill(start_color='1F4E78', end_color='1F4E78', fill_type='solid') # Safir Mavi
+        header_fill = PatternFill(start_color='1F4E78', end_color='1F4E78', fill_type='solid')
         data_font = Font(name='Segoe UI', size=10)
-        zebra_fill = PatternFill(start_color='F2F4F7', end_color='F2F4F7', fill_type='solid') # Mat Gri
+        zebra_fill = PatternFill(start_color='F2F4F7', end_color='F2F4F7', fill_type='solid')
         thin_side = Side(border_style="thin", color="D9D9D9")
         thin_border = Border(left=thin_side, right=thin_side, top=thin_side, bottom=thin_side)
         
+        # ÇÖZÜM: openpyxl döngü kurgusu tamamen izole satırlara bölündü
         for sheet_name in writer.sheets:
             ws = writer.sheets[sheet_name]
             ws.views.sheetView.showGridLines = True
             
-            # Başlık stil atamaları
+            # Sadece Başlık Satırını Biçimlendir (1. Satır)
             for col_idx in range(1, ws.max_column + 1):
                 cell = ws.cell(row=1, column=col_idx)
-                cell.font = header_font; cell.fill = header_fill
+                cell.font = header_font
+                cell.fill = header_fill
                 cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
             ws.row_dimensions[1].height = 28
             
-            # Veri hücreleri hizalama ve finansal format döngüsü
-            for row_idx in range(2, ws.max_row + 1):
-                ws.row_dimensions[row_idx].height = 20
-                for col_idx in range(1, ws.max_column + 1):
-                    cell = ws.cell(row=row_idx, column=col_idx)
-                    cell.font = data_font; cell.border = thin_border
-                    if row_idx % 2 == 0: cell.fill = zebra_fill
-                    
-                    val = cell.value
-                    col_name = str(ws.cell(row=1, column=col_idx).value)
-                    
-                    if isinstance(val, (int, float)):
-                        cell.alignment = Alignment(horizontal='right', vertical='center')
-                        cell.number_format = '#,##0.000000' if "Oran" in col_name else '#,##0.0'
-                    elif any(k in col_name for k in ["LOT", "No", "Plaka", "Tarih", "Depo"]):
-                        cell.alignment = Alignment(horizontal='center', vertical='center')
-                    else:
-                        cell.alignment = Alignment(horizontal='left', vertical='center')
+            # Sadece Veri Satırlarını Biçimlendir (2. Satırdan Son Satıra Kadar)
+            if ws.max_row >= 2:
+                for row_idx in range(2, ws.max_row + 1):
+                    ws.row_dimensions[row_idx].height = 20
+                    for col_idx in range(1, ws.max_column + 1):
+                        cell = ws.cell(row=row_idx, column=col_idx)
+                        cell.font = data_font
+                        cell.border = thin_border
                         
-            # Akıllı otomatik sütun genişliği genişletme
+                        if row_idx % 2 == 0: 
+                            cell.fill = zebra_fill
+                        
+                        col_name = str(ws.cell(row=1, column=col_idx).value)
+                        val = cell.value
+                        
+                        if isinstance(val, (int, float)):
+                            cell.alignment = Alignment(horizontal='right', vertical='center')
+                            cell.number_format = '#,##0.000000' if "Oran" in col_name else '#,##0.0'
+                        elif any(k in col_name for k in ["LOT", "No", "Plaka", "Tarih", "Depo"]):
+                            cell.alignment = Alignment(horizontal='center', vertical='center')
+                        else:
+                            cell.alignment = Alignment(horizontal='left', vertical='center')
+            
+            # Sütun Genişliği Ayarlayıcı
             for col in ws.columns:
                 max_len = max(len(str(cell.value or '')) for cell in col)
                 col_letter = get_column_letter(col.column)
@@ -411,7 +415,7 @@ elif sayfa == "🏭 3. Üretim Emri & Giriş Sayfası":
                         st.session_state.hammadde_depo.append({"Giriş Tarihi": datetime.now().strftime("%Y-%m-%d"), "Depo": kaynak_depo_secim, "Kategori": "Ara Mamul", "Hammadde": secilen_recete_adi, "LOT No": u_lot, "Miktar": hedef_miktar, "Birim": "Kg"})
                     else:
                         st.session_state.mamul_depo.append({"Üretim Tarihi": current_date_str, "Ürün": secilen_recete_adi, "Üretim LOT / Silo": u_lot, "Miktar": hedef_miktar})
-                    st.success(f"🎉 Üretim tamamlandı! Hammaddeler başarıyla {kaynak_depo_secim} stoklarından düşüldü."); st.rerun()
+                    st.success("🎉 Üretim tamamlandı! Hammaddeler başarıyla {kaynak_depo_secim} stoklarından düşüldü."); st.rerun()
 
 # ==========================================
 # SAYFA 4: MÜŞTERİ SEVKİYAT VE İRSALİYE ÇIKIŞ SAYFASI

@@ -66,7 +66,6 @@ def malzeme_depo_stok_getir(malzeme_adi, depo_adi):
     harcanan_toplam = st.session_state.hammadde_kullanilan_toplam.get(anahtar, 0.0)
     return max(0.0, giren_toplam - harcanan_toplam)
 
-# --- KANITLI DÜZELTME: AttributeError (sheetView) HATASI ÇÖZÜLEN RAPOR MOTORU ---
 def endustriyel_excel_rapor_olustur(bas_tarih, bit_tarih):
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
     from openpyxl.utils import get_column_letter
@@ -122,8 +121,6 @@ def endustriyel_excel_rapor_olustur(bas_tarih, bit_tarih):
         
         for sheet_name in writer.sheets:
             ws = writer.sheets[sheet_name]
-            
-            # GÜNCELLEME: Çökmeye neden olan eski '.views.sheetView' komutu yerine '.sheet_view' entegre edildi
             ws.sheet_view.showGridLines = True
             
             for col_idx in range(1, ws.max_column + 1):
@@ -397,13 +394,15 @@ elif sayfa == "🏭 3. Üretim Emri & Giriş Sayfası":
                     for h_adi, f_amt in fiili_girisler.items():
                         anahtar = f"{h_adi}_{kaynak_depo_secim}"
                         st.session_state.hammadde_kullanilan_toplam[anahtar] = st.session_state.hammadde_kullanilan_toplam.get(anahtar, 0.0) + f_amt
+                        st.session_state.uretim_harcumalari_log = st.session_state.get('uretim_harcamalari_log', [])
                         st.session_state.uretim_harcamalari_log.append({
                             "Tarih": current_date_str, "Harcanan Depo": kaynak_depo_secim, "Üretim LOT": u_lot, 
                             "Harcanan Malzeme": h_adi, "Miktar": f_amt, "Birim": malzeme_birimi_bul(h_adi)
                         })
                     
+                    # DÜZELTİLDİ: Syntax hatasına yol açan 'Model Hacmi' ifadesi kaldırılarak doğrudan 'hedef_miktar' atandı
                     if hedef_tur == "Ara Mamul Reçetesi":
-                        st.session_state.hammadde_depo.append({"Giriş Tarihi": datetime.now().strftime("%Y-%m-%d"), "Depo": kaynak_depo_secim, "Kategori": "Ara Mamul", "Hammadde": secilen_recete_adi, "LOT No": u_lot, "Miktar": Model Hacmi if 'Model Hacmi' in locals() else hedef_miktar, "Birim": "Kg"})
+                        st.session_state.hammadde_depo.append({"Giriş Tarihi": datetime.now().strftime("%Y-%m-%d"), "Depo": kaynak_depo_secim, "Kategori": "Ara Mamul", "Hammadde": secilen_recete_adi, "LOT No": u_lot, "Miktar": hedef_miktar, "Birim": "Kg"})
                     else:
                         st.session_state.mamul_depo.append({"Üretim Tarihi": current_date_str, "Ürün": secilen_recete_adi, "Üretim LOT / Silo": u_lot, "Miktar": hedef_miktar})
                     st.success(f"🎉 Üretim tamamlandı! Hammaddeler başarıyla {kaynak_depo_secim} stoklarından düşüldü."); st.rerun()

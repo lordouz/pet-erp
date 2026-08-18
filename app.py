@@ -66,10 +66,8 @@ def malzeme_depo_stok_getir(malzeme_adi, depo_adi):
     harcanan_toplam = st.session_state.hammadde_kullanilan_toplam.get(anahtar, 0.0)
     return max(0.0, giren_toplam - harcanan_toplam)
 
+# --- ÇÖZÜM: openpyxl DÖNGÜ HATALARI KALDIRILDI, XlsxWriter KURGUSUNA GEÇİLDİ ---
 def endustriyel_excel_rapor_olustur(bas_tarih, bit_tarih):
-    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-    from openpyxl.utils import get_column_letter
-
     buffer = io.BytesIO()
     
     df_depo = pd.DataFrame(st.session_state.hammadde_depo) if st.session_state.hammadde_depo else pd.DataFrame(columns=["Giriş Tarihi", "Depo", "Kategori", "Hammadde", "LOT No", "Miktar", "Birim"])
@@ -105,52 +103,62 @@ def endustriyel_excel_rapor_olustur(bas_tarih, bit_tarih):
         })
     df_anlik_bakiye = pd.DataFrame(bakiye_satirlari) if bakiye_satirlari else pd.DataFrame(columns=["Malzeme / Ürün Adı", "Depo 1 Stok", "Depo 2 Stok", "Depo 3 Stok", "Toplam Fabrika Stoğu", "Ölçü Birimi"])
 
-    with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+    # XlsxWriter motoru ile sıfır riskli kurumsal tasarım inşaası
+    with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
         df_anlik_bakiye.to_excel(writer, index=False, sheet_name='Anlık Depolar Özet Matris')
         f_depo_giris.to_excel(writer, index=False, sheet_name='Giriş Hareketleri Detay')
         f_uretim_harcama.to_excel(writer, index=False, sheet_name='Üretim Tüketim Sarfiyat Detay')
         f_mamul_depo.to_excel(writer, index=False, sheet_name='Mamul Üretim Giriş Detay')
         f_sevk_hareket.to_excel(writer, index=False, sheet_name='Müşteri Sevkiyat İrsaliye Detay')
         
-        header_font = Font(name='Segoe UI', size=11, bold=True, color='FFFFFF')
-        header_fill = PatternFill(start_color='1F4E78', end_color='1F4E78', fill_type='solid')
-        data_font = Font(name='Segoe UI', size=10)
-        zebra_fill = PatternFill(start_color='F2F4F7', end_color='F2F4F7', fill_type='solid')
-        thin_side = Side(border_style="thin", color="D9D9D9")
-        thin_border = Border(left=thin_side, right=thin_side, top=thin_side, bottom=thin_side)
+        workbook = writer.book
         
-        for sheet_name in writer.sheets:
-            ws = writer.sheets[sheet_name]
-            ws.sheet_view.showGridLines = True
+        # Stil format şablonları
+        header_format = workbook.add_format({
+            'bold': True, 'text_wrap': True, 'font_name': 'Segoe UI', 'font_size': 11,
+            'font_color': 'white', 'bg_color': '#1F4E78', 'align': 'center', 'valign': 'vcenter', 'border': 1
+        })
+        
+        number_format = workbook.add_format({'num_format': '#,##0.0', 'font_name': 'Segoe UI', 'font_size': 10, 'valign': 'vcenter'})
+        ratio_format = workbook.add_format({'num_format': '#,##0.000000', 'font_name': 'Segoe UI', 'font_size': 10, 'valign': 'vcenter'})
+        text_format = workbook.add_format({'font_name': 'Segoe UI', 'font_size': 10, 'valign': 'vcenter', 'align': 'left'})
+        center_format = workbook.add_format({'font_name': 'Segoe UI', 'font_size': 10, 'valign': 'vcenter', 'align': 'center'})
+        
+        tablo_haritasi = {
+            'Anlık Depolar Özet Matris': df_anlik_bakiye, 'Giriş Hareketleri Detay': f_depo_giris,
+            'Üretim Tüketim Sarfiyat Detay': f_uretim_harcama, 'Mamul Üretim Giriş Detay': f_mamul_depo,
+            'Müşteri Sevkiyat İrsaliye Detay': f_sevk_hareket
+        }
+        
+        for sheet_name, current_df in tablo_haritasi.items():
+            worksheet = writer.sheets[sheet_name]
+            worksheet.hide_gridlines(0) # Kılavuz çizgilerini görünür kıl
+            worksheet.set_row(0, 26, header_format)
             
-            for col_idx in range(1, ws.max_column + 1):
-                cell = ws.cell(row=1, column=col_idx)
-                cell.font = header_font; cell.fill = header_fill; cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
-            ws.row_dimensions.height = 28
-            
-            if ws.max_row >= 2:
-                for row_idx in range(2, ws.max_row + 1):
-                    ws.row_dimensions[row_idx].height = 20
-                    for col_idx in range(1, ws.max_column + 1):
-                        cell = ws.cell(row=row_idx, column=col_idx)
-                        cell.font = data_font; cell.border = thin_border
-                        if row_idx % 2 == 0: cell.fill = zebra_fill
-                        
-                        col_name = str(ws.cell(row=1, column=col_idx).value)
-                        val = cell.value
+            # Başlık hücrelerini manuel olarak kurumsal formata zorla
+            for col_num, column_title in enumerate(current_df.columns):
+                worksheet.write(0, col_num, column_title, header_format)
+                
+            # Veri satırlarını sütun tiplerine göre otomatik hizala ve formatla
+            if not current_df.empty:
+                for row_idx in range(len(current_df)):
+                    worksheet.set_row(row_idx + 1, 20)
+                    for col_idx, col_name in enumerate(current_df.columns):
+                        val = current_df.iloc[row_idx, col_idx]
                         
                         if isinstance(val, (int, float)):
-                            cell.alignment = Alignment(horizontal='right', vertical='center')
-                            cell.number_format = '#,##0.000000' if "Oran" in col_name else '#,##0.0'
-                        elif any(k in col_name for k in ["LOT", "No", "Plaka", "Tarih", "Depo"]):
-                            cell.alignment = Alignment(horizontal='center', vertical='center')
+                            fmt = ratio_format if ("Oran" in str(col_name) or "İhtiyacı" in str(col_name)) else number_format
+                            worksheet.write(row_idx + 1, col_idx, val, fmt)
+                        elif any(k in str(col_name) for k in ["LOT", "No", "Plaka", "Tarih", "Depo"]):
+                            worksheet.write(row_idx + 1, col_idx, str(val), center_format)
                         else:
-                            cell.alignment = Alignment(horizontal='left', vertical='center')
+                            worksheet.write(row_idx + 1, col_idx, str(val), text_format)
             
-            for col in ws.columns:
-                max_len = max(len(str(cell.value or '')) for cell in col)
-                col_letter = get_column_letter(col.column)
-                ws.column_dimensions[col_letter].width = max(max_len + 4, 14)
+            # Dinamik sütun genişliği motoru
+            for col_idx, col_name in enumerate(current_df.columns):
+                series = current_df[col_name]
+                max_len = max(series.astype(str).map(len).max(), len(str(col_name))) + 5
+                worksheet.set_column(col_idx, col_idx, max(max_len, 14))
                 
     return buffer.getvalue()
 # 3. YAN PANEL MENÜ SİSTEMİ
@@ -400,12 +408,11 @@ elif sayfa == "🏭 3. Üretim Emri & Giriş Sayfası":
                             "Harcanan Malzeme": h_adi, "Miktar": f_amt, "Birim": malzeme_birimi_bul(h_adi)
                         })
                     
-                    # DÜZELTİLDİ: Syntax hatasına yol açan 'Model Hacmi' ifadesi kaldırılarak doğrudan 'hedef_miktar' atandı
                     if hedef_tur == "Ara Mamul Reçetesi":
                         st.session_state.hammadde_depo.append({"Giriş Tarihi": datetime.now().strftime("%Y-%m-%d"), "Depo": kaynak_depo_secim, "Kategori": "Ara Mamul", "Hammadde": secilen_recete_adi, "LOT No": u_lot, "Miktar": hedef_miktar, "Birim": "Kg"})
                     else:
                         st.session_state.mamul_depo.append({"Üretim Tarihi": current_date_str, "Ürün": secilen_recete_adi, "Üretim LOT / Silo": u_lot, "Miktar": hedef_miktar})
-                    st.success(f"🎉 Üretim tamamlandı! Hammaddeler başarıyla {kaynak_depo_secim} stoklarından düşüldü."); st.rerun()
+                    st.success("🎉 Üretim tamamlandı! Hammaddeler başarıyla {kaynak_depo_secim} stoklarından düşüldü."); st.rerun()
 
 # ==========================================
 # SAYFA 4: MÜŞTERİ SEVKİYAT VE İRSALİYE ÇIKIŞ SAYFASI

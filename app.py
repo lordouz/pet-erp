@@ -47,7 +47,7 @@ if 'receteler' not in st.session_state:
         {
             "Reçete Adı": "Standart Amorf Chips (Reaktör)",
             "Tür": "Ara Mamul Reçetesi",
-            "BOM": {"PTA": 0.850, "MEG": 0.135, "Antimon": 0.005}
+            "BOM": {"PTA": 0.850000, "MEG": 0.135000, "Antimon": 0.005000}
         }
     ]
 
@@ -195,85 +195,60 @@ elif sayfa == "📥 1. Hammadde Giriş Sayfası":
                 st.success(f"✅ {h_turu} alındı."); st.rerun()
 
 # ==========================================
-# SAYFA 2: REÇETE OLUŞTURMA VE DÜZENLEME (YENİLENDİ!)
+# SAYFA 2: REÇETE OLUŞTURMA VE DÜZENLEME (6 BASAMAK ONDALIK GÜNCELLEMESİ)
 # ==========================================
 elif sayfa == "📝 2. Reçete Oluşturma Sayfası":
     st.header("📝 Ürün Reçetesi (BOM) Yönetim İstasyonu")
-    
     operasyon_turu = st.radio("Yapmak İstediğiniz İşlem:", ["➕ Yeni Reçete Oluştur", "✏️ Mevcut Reçeteyi Gör ve Düzenle"])
     
-    # Varsayılan Form Ayarlarını Belirleme
-    r_adi = ""
-    r_turu = "Ara Mamul Reçetesi"
-    eski_bom = {}
-    duzenleme_indeksi = None
+    r_adi, r_turu, eski_bom, duzenleme_indeksi = "", "Ara Mamul Reçetesi", {}, None
     
-    if operasyon_turu == "✏️ Mevcut Reçeteyi Gör ve Düzenle":
-        if not st.session_state.receteler:
-            st.info("Sistemde henüz düzenlenebilecek bir reçete bulunmuyor. Önce yeni bir tane oluşturun.")
-        else:
-            recete_isimleri = [r["Reçete Adı"] for r in st.session_state.receteler]
-            secilen_r_adi = st.selectbox("Düzenlenecek Reçeteyi Seçin", recete_isimleri)
-            
-            # Seçilen reçetenin mevcut verilerini çekme
-            duzenleme_indeksi = next(idx for idx, r in enumerate(st.session_state.receteler) if r["Reçete Adı"] == secilen_r_adi)
-            hedef_recete = st.session_state.receteler[duzenleme_indeksi]
-            
-            r_adi = hedef_recete["Reçete Adı"]
-            r_turu = hedef_recete["Tür"]
-            eski_bom = hedef_recete["BOM"]
-            st.warning(f"⚠️ Şu an '{r_adi}' reçetesini düzenlemektesiniz. Yapacağınız değişiklikler eski oranların üzerine yazılacaktır.")
+    if operasyon_turu == "✏️ Mevcut Reçeteyi Gör ve Düzenle" and st.session_state.receteler:
+        recete_isimleri = [r["Reçete Adı"] for r in st.session_state.receteler]
+        secilen_r_adi = st.selectbox("Düzenlenecek Reçeteyi Seçin", recete_isimleri)
+        duzenleme_indeksi = next(idx for idx, r in enumerate(st.session_state.receteler) if r["Reçete Adı"] == secilen_r_adi)
+        hedef_recete = st.session_state.receteler[duzenleme_indeksi]
+        r_adi, r_turu, eski_bom = hedef_recete["Reçete Adı"], hedef_recete["Tür"], hedef_recete["BOM"]
+        st.warning(f"⚠️ Şu an '{r_adi}' reçetesini düzenlemektesiniz.")
 
     st.write("---")
-    # Dinamik veya yeni giriş formu başlığı
-    r_adi_input = st.text_input("Reçete / Ürün Adı", value=r_adi, placeholder="Örn: SSP Şişelik PET BOM")
+    r_adi_input = st.text_input("Reçete / Ürün Adı", value=r_adi)
     r_turu_input = st.selectbox("Reçete Sınıfı", ["Ara Mamul Reçetesi", "Mamul Reçetesi"], index=0 if r_turu == "Ara Mamul Reçetesi" else 1)
     
-    st.write("**Kategori Bazlı Reçete Oran Girişleri:**")
+    st.write("**Kategori Bazlı Reçete Oran Girişleri (Hassas 6 Basamak):**")
     tab_ham, tab_kim, tab_amb, tab_ara = st.tabs(["🛠️ Hammaddeler", "🧪 Yardımcı Kimyasallar", "📦 Ambalaj", "⚙️ Ara Mamuller"])
     secilen_bom = {}
     
+    # Girdilerin formatları %.6f ve step katsayıları 0.000001 yapılarak ondalık hassasiyet büyütüldü
     with tab_ham:
         for kalem in st.session_state.stok_kartlari["Hammadde"]:
-            varsayilan_deger = float(eski_bom.get(kalem['Ad'], 0.0))
-            val = st.number_input(f"{kalem['Ad']} İhtiyacı ({kalem['Birim']})", min_value=0.0, max_value=100.0, value=varsayilan_deger, step=0.001, format="%.3f", key=f"r_ham_{kalem['Ad']}")
+            val = st.number_input(f"{kalem['Ad']} İhtiyacı ({kalem['Birim']})", min_value=0.0, max_value=100.0, value=float(eski_bom.get(kalem['Ad'], 0.0)), step=0.000001, format="%.6f", key=f"r_ham_{kalem['Ad']}")
             if val > 0: secilen_bom[kalem['Ad']] = val
             
     with tab_kim:
         for kalem in st.session_state.stok_kartlari["Yardımcı Kimyasal"]:
-            varsayilan_deger = float(eski_bom.get(kalem['Ad'], 0.0))
-            val = st.number_input(f"{kalem['Ad']} İhtiyacı ({kalem['Birim']})", min_value=0.0, max_value=100.0, value=varsayilan_deger, step=0.001, format="%.3f", key=f"r_kim_{kalem['Ad']}")
+            val = st.number_input(f"{kalem['Ad']} İhtiyacı ({kalem['Birim']})", min_value=0.0, max_value=100.0, value=float(eski_bom.get(kalem['Ad'], 0.0)), step=0.000001, format="%.6f", key=f"r_kim_{kalem['Ad']}")
             if val > 0: secilen_bom[kalem['Ad']] = val
             
     with tab_amb:
         for kalem in st.session_state.stok_kartlari["Ambalaj"]:
-            varsayilan_deger = float(eski_bom.get(kalem['Ad'], 0.0))
-            val = st.number_input(f"{kalem['Ad']} İhtiyacı ({kalem['Birim']})", min_value=0.0, max_value=100.0, value=varsayilan_deger, step=0.001, format="%.3f", key=f"r_amb_{kalem['Ad']}")
+            val = st.number_input(f"{kalem['Ad']} İhtiyacı ({kalem['Birim']})", min_value=0.0, max_value=100.0, value=float(eski_bom.get(kalem['Ad'], 0.0)), step=0.000001, format="%.6f", key=f"r_amb_{kalem['Ad']}")
             if val > 0: secilen_bom[kalem['Ad']] = val
             
     with tab_ara:
         for kalem in st.session_state.stok_kartlari["Ara Mamul"]:
-            varsayilan_deger = float(eski_bom.get(kalem['Ad'], 0.0))
-            val = st.number_input(f"{kalem['Ad']} İhtiyacı ({kalem['Birim']})", min_value=0.0, max_value=100.0, value=varsayilan_deger, step=0.001, format="%.3f", key=f"r_ara_{kalem['Ad']}")
+            val = st.number_input(f"{kalem['Ad']} İhtiyacı ({kalem['Birim']})", min_value=0.0, max_value=100.0, value=float(eski_bom.get(kalem['Ad'], 0.0)), step=0.000001, format="%.6f", key=f"r_ara_{kalem['Ad']}")
             if val > 0: secilen_bom[kalem['Ad']] = val
 
     st.write("---")
-    buton_metni = "💾 Değişiklikleri Kaydet ve Reçeteyi Güncelle" if operasyon_turu == "✏️ Mevcut Reçeteyi Gör ve Düzenle" else "➕ Yeni Reçeteyi Sisteme Kaydet"
-    recete_kaydet_butonu = st.button(buton_metni)
-    
-    if recete_kaydet_butonu:
-        if not r_adi_input: st.error("❌ Reçete adı boş bırakılamaz!")
-        elif not secilen_bom: st.error("❌ Reçeteye en az bir malzeme oranı eklemelisiniz!")
-        else:
+    if st.button("💾 Değişiklikleri Kaydet ve Reçeteyi Güncelle" if operasyon_turu == "✏️ Mevcut Reçeteyi Gör ve Düzenle" else "➕ Yeni Reçeteyi Sisteme Kaydet"):
+        if r_adi_input and secilen_bom:
             guncel_recete = {"Reçete Adı": r_adi_input, "Tür": r_turu_input, "BOM": secilen_bom}
-            
             if operasyon_turu == "✏️ Mevcut Reçeteyi Gör ve Düzenle" and duzenleme_indeksi is not None:
                 st.session_state.receteler[duzenleme_indeksi] = guncel_recete
-                st.success(f"✅ '{r_adi_input}' reçetesi başarıyla güncellendi (Revize Edildi)!")
             else:
                 st.session_state.receteler.append(guncel_recete)
-                st.success(f"✅ '{r_adi_input}' isimli yeni reçete kaydedildi!")
-            st.rerun()
+            st.success("✅ Reçete başarıyla işlendi!"); st.rerun()
 
 # ==========================================
 # SAYFA 3: ÜRETİM EMRİ & GİRİŞİ
@@ -297,7 +272,7 @@ elif sayfa == "🏭 3. Üretim Emri & Giriş Sayfası":
             for h_adi, oran in secilen_recete["BOM"].items():
                 teorik = hedef_miktar * oran
                 birim = malzeme_birimi_bul(h_adi)
-                fiili_girisler[h_adi] = st.number_input(f"{h_adi} Fiili Tüketim ({birim})", min_value=0.0, value=float(teorik))
+                fiili_girisler[h_adi] = st.number_input(f"{h_adi} Fiili Tüketim ({birim})", min_value=0.0, value=float(teorik), format="%.4f")
                 
             if st.form_submit_button("Üretimi Onayla"):
                 kontrol = True

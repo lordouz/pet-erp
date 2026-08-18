@@ -6,16 +6,14 @@ import io
 # 1. SAYFA VE TASARIM AYARLARI
 st.set_page_config(page_title="PET Resin Komple ERP v2.6", layout="wide")
 
-# MERKEZİ STOK KARTLARI VE BİRİMLERİ HAFIZASI (23 Yeni Kalem Otomatik Yüklendi)
+# MERKEZİ STOK KARTLARI VE BİRİMLERİ HAFIZASI (Tam İstediğiniz Hammadde Kalemleri Sabitlendi)
 if 'stok_kartlari' not in st.session_state:
     st.session_state.stok_kartlari = {
         "Hammadde": [
             {"Ad": "PTA", "Birim": "Kg"}, {"Ad": "IPA", "Birim": "Kg"},
-            {"Ad": "SAF MEG", "Birim": "Kg"}, {"Ad": "SAF DEG", "Birim": "Kg"},
-            {"Ad": "FLAKE", "Birim": "Kg"}, {"Ad": "İTHAL FLAKE", "Birim": "Kg"},
-            {"Ad": "MELPET AMORF-B ( Eritmelik )", "Birim": "Kg"},
-            {"Ad": "DEŞE KIRIĞI", "Birim": "Kg"}, {"Ad": "KİRLİ MEG", "Birim": "Kg"},
-            {"Ad": "TEG (SAF)", "Birim": "Kg"}, {"Ad": "TEG (DESTİLE)", "Birim": "Kg"}
+            {"Ad": "SAF MEG", "Birim": "Kg"}, {"Ad": "YERLİ FLAKE", "Birim": "Kg"},
+            {"Ad": "İTHAL FLAKE", "Birim": "Kg"}, {"Ad": "K2 ERİTMELİK", "Birim": "Kg"},
+            {"Ad": "DEŞE KIRIĞI", "Birim": "Kg"}, {"Ad": "KİRLİ MEG", "Birim": "Kg"}
         ],
         "Yardımcı Kimyasal": [
             {"Ad": "ANTİMON TRİOKSİT", "Birim": "Kg"}, {"Ad": "FOSFORİK ASİT", "Birim": "Kg"},
@@ -192,8 +190,6 @@ elif sayfa == "📈 📊 Fabrika Raporlar Sayfası":
 # ==========================================
 elif sayfa == "🗂️ 0. Stok Kartı Tanımlama Sayfası":
     st.header("🗂️ Fabrika Malzeme / Stok Kartı Yönetim İstasyonu")
-    
-    # KESİN DÜZELTME: Sekmeler with bloğu hatasına meydan vermeyecek şekilde izole edilerek açıldı
     tab_ekle, tab_yonet = st.tabs(["➕ Yeni Stok Kartı Ekle", "✏️ / ❌ Mevcut Kartları Düzenle & Sil"])
     
     with tab_ekle:
@@ -293,6 +289,7 @@ elif sayfa == "📝 2. Reçete Oluşturma Sayfası":
     r_adi_input = st.text_input("Reçete / Ürün Adı", value=r_adi_val)
     r_turu_input = st.selectbox("Reçete Sınıfı", ["Ara Mamul Reçetesi", "Mamul Reçetesi"], index=r_turu_idx)
     
+    # 5 BAŞLIKLI SEKME (TAB) SİSTEMİ
     tab_ham, tab_kim, tab_amb, tab_ara, tab_enr = st.tabs(["🛠️ Hammaddeler", "🧪 Yardımcı Kimyasallar", "📦 Ambalaj", "⚙️ Ara Mamuller", "⚡ Enerji & Sarfiyat"])
     secilen_bom = {}
     with tab_ham:

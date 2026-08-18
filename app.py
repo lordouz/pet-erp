@@ -226,7 +226,7 @@ elif sayfa == "📥 1. Hammadde Giriş Sayfası":
                 st.session_state.hammadde_depo.append({"Giriş Tarihi": str(g_tarih), "Kategori": kat_turu, "Hammadde": h_turu, "LOT No": h_lot, "Miktar": h_miktar, "Birim": secilen_birim})
                 st.success(f"✅ {h_turu} alındı."); st.rerun()
 # ==========================================
-# SAYFA 2: REÇETE OLUŞTURMA VE DÜZENLEME (HAFIZA VE SEKMELİ DÜZENLEME ALANI)
+# SAYFA 2: REÇETE OLUŞTURMA VE DÜZENLEME (TABLO GÖRÜNÜMÜ REZİVONUYLA BİRLİKTE)
 # ==========================================
 elif sayfa == "📝 2. Reçete Oluşturma Sayfası":
     st.header("📝 Ürün Reçetesi (BOM) Yönetim İstasyonu")
@@ -241,8 +241,20 @@ elif sayfa == "📝 2. Reçete Oluşturma Sayfası":
         hedef_recete = st.session_state.receteler[duzenleme_indeksi]
         eski_bom, r_adi_val = hedef_recete["BOM"], hedef_recete["Reçete Adı"]
         r_turu_idx = 0 if hedef_recete["Tür"] == "Ara Mamul Reçetesi" else 1
+        
+        # --- YENİLENEN TABLO GÖRÜNÜMÜ ALGORİTMASI ---
         st.subheader("📋 Kayıtlı Mevcut Reçete Oranları Özet Görünümü")
-        st.json(eski_bom)
+        if eski_bom:
+            rapor_satirlari = []
+            for b_malz, b_oran in eski_bom.items():
+                rapor_satirlari.append({
+                    "Malzeme Adı": b_malz,
+                    "Katsayı İhtiyaç Oranı": f"{b_oran:.6f}",
+                    "Birim": malzeme_birimi_bul(b_malz)
+                })
+            st.dataframe(pd.DataFrame(rapor_satirlari), use_container_width=True)
+        else:
+            st.info("Bu reçetenin içeriği boş.")
 
     st.write("---")
     st.subheader("🛠️ Reçete Güncelleme ve BOM Giriş Paneli")

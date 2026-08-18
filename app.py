@@ -66,7 +66,7 @@ def malzeme_depo_stok_getir(malzeme_adi, depo_adi):
     harcanan_toplam = st.session_state.hammadde_kullanilan_toplam.get(anahtar, 0.0)
     return max(0.0, giren_toplam - harcanan_toplam)
 
-# --- TAMAMEN DÜZELTİLMİŞ KURUMSAL EXCEL MOTORU ---
+# --- YENİLENEN TAM GÜVENLİ EXCEL MOTORU ---
 def endustriyel_excel_rapor_olustur(bas_tarih, bit_tarih):
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
     from openpyxl.utils import get_column_letter
@@ -78,20 +78,22 @@ def endustriyel_excel_rapor_olustur(bas_tarih, bit_tarih):
     df_mamul = pd.DataFrame(st.session_state.mamul_depo) if st.session_state.mamul_depo else pd.DataFrame(columns=["Üretim Tarihi", "Ürün", "Üretim LOT / Silo", "Miktar"])
     df_sevk = pd.DataFrame(st.session_state.sevkiyat_depo) if st.session_state.sevkiyat_depo else pd.DataFrame(columns=["Sevkiyat Tarihi", "Müşteri", "İrsaliye No", "Plaka", "Ürün", "Sevk Edilen LOT", "Sevk Miktarı (Kg)"])
     
-    # 277. Satırdaki Hata Giderildi: Güvenli string-date kırpma algoritması uygulandı
+    # 284. Satırdaki Hata Kökünden Çözüldü: Pandas yerleşik zaman fonksiyonuna (Vektörel) geçildi
     def tarih_filtrele_ve_temizle(df, tarih_kolonu):
         if df.empty or tarih_kolonu not in df.columns: return df
         df_copy = df.copy()
-        # Tarih bilgisindeki saat kırpılarak string olarak güvenle süzülür, çökme engellenir
-        df_copy["clean_str_date"] = df_copy[tarih_kolonu].astype(str).apply(lambda x: x.split(" ")[0] if " " in x else x)
-        df_copy["temp_date_obj"] = pd.to_datetime(df_copy["clean_str_date"], errors='coerce').dt.date
+        
+        # apply(split) yerine doğrudan Pandas vektörel datetime dönüştürücüsü kullanılarak kilitlenme önlendi
+        temp_datetime = pd.to_datetime(df_copy[tarih_kolonu], errors='coerce')
+        df_copy["temp_date_obj"] = temp_datetime.dt.date
+        
         filtered_df = df_copy[(df_copy["temp_date_obj"] >= bas_tarih) & (df_copy["temp_date_obj"] <= bit_tarih)]
         
-        # Geçici kolonlar temizleniyor
-        cols_to_drop = [c for k in ["clean_str_date", "temp_date_obj"] if (c := k) in filtered_df.columns]
-        if cols_to_drop: filtered_df = filtered_df.drop(columns=cols_to_drop)
+        if "temp_date_obj" in filtered_df.columns: 
+            filtered_df = filtered_df.drop(columns=["temp_date_obj"])
         return filtered_df
 
+    # Güvenli süzme işlemleri
     f_depo_giris = tarih_filtrele_ve_temizle(df_depo, "Giriş Tarihi")
     f_uretim_harcama = tarih_filtrele_ve_temizle(df_harcama, "Tarih")
     f_mamul_depo = tarih_filtrele_ve_temizle(df_mamul, "Üretim Tarihi")
@@ -177,7 +179,6 @@ if sayfa == "📊 Genel Depo & Stok Durumu":
     kat_rehber = df_merkez.set_index("Hammadde")["Kategori"].to_dict() if not df_merkez.empty else {}
     tum_mevcut_malzemeler = df_merkez["Hammadde"].unique().tolist() if not df_merkez.empty else []
 
-    # 1) Hammaddeler Başlığı
     with st.expander("🛠️ 1) HAMMADDE DEPOLARI DETAYLARI"):
         for h in tum_mevcut_malzemeler:
             if kat_rehber.get(h) == "Hammadde":
@@ -192,7 +193,6 @@ if sayfa == "📊 Genel Depo & Stok Durumu":
                 c4.metric("Küm. Toplam", f"{(d1+d2+d3):,.1f}")
                 st.write(" ")
     
-    # 2) Yardımcı Kimyasallar Başlığı
     with st.expander("🧪 2) YARDIMCI KİMYASAL DEPOLARI DETAYLARI"):
         for h in tum_mevcut_malzemeler:
             if kat_rehber.get(h) == "Yardımcı Kimyasal":
@@ -207,7 +207,6 @@ if sayfa == "📊 Genel Depo & Stok Durumu":
                 c4.metric("Küm. Toplam", f"{(d1+d2+d3):,.1f}")
                 st.write(" ")
 
-    # 3) Ambalaj Başlığı
     with st.expander("📦 3) AMBALAJ MALZEMESİ DEPOLARI DETAYLARI"):
         for h in tum_mevcut_malzemeler:
             if kat_rehber.get(h) == "Ambalaj":
@@ -222,7 +221,6 @@ if sayfa == "📊 Genel Depo & Stok Durumu":
                 c4.metric("Küm. Toplam", f"{(d1+d2+d3):,.0f}")
                 st.write(" ")
 
-    # 4) Ara Mamul Başlığı
     with st.expander("⚙️ 4) ARA MAMUL DEPOLARI DETAYLARI"):
         for h in tum_mevcut_malzemeler:
             if kat_rehber.get(h) == "Ara Mamul":
@@ -237,7 +235,6 @@ if sayfa == "📊 Genel Depo & Stok Durumu":
                 c4.metric("Küm. Toplam", f"{(d1+d2+d3):,.1f}")
                 st.write(" ")
 
-    # 5) Ürün Bazlı Gruplanmış Satışa Hazır Mamul Başlığı
     with st.expander("🏭 5) ÜRÜN BAZLI SATIŞA HAZIR MAMUL DEPOSU"):
         if st.session_state.mamul_depo:
             df_mamul = pd.DataFrame(st.session_state.mamul_depo)
@@ -317,8 +314,8 @@ elif sayfa == "📝 2. Reçete Oluşturma Sayfası":
     
     if operasyon_turu == "✏️ Mevcut Reçeteyi Gör ve Düzenle" and st.session_state.receteler:
         recete_isimleri = [r["Reçete Adı"] for r in st.session_state.receteler]
-        duzenlenecek_recete_adi = st.selectbox("🔍 Düzenlemek İstediğiniz Reçeteyi Seçin", recete_isimleri)
-        duzenleme_indeksi = next(idx for idx, r in enumerate(st.session_state.receteler) if r["Reçete Adı"] == duzenlenecek_recete_adi)
+        duzenlemek_istediğiniz_recete_adi = st.selectbox("🔍 Düzenlemek İstediğiniz Reçeteyi Seçin", recete_isimleri)
+        duzenleme_indeksi = next(idx for idx, r in enumerate(st.session_state.receteler) if r["Reçete Adı"] == duzenlemek_istediğiniz_recete_adi)
         eski_bom, r_adi_val = st.session_state.receteler[duzenleme_indeksi]["BOM"], st.session_state.receteler[duzenleme_indeksi]["Reçete Adı"]
         r_turu_idx = 0 if st.session_state.receteler[duzenleme_indeksi]["Tür"] == "Ara Mamul Reçetesi" else 1
         st.subheader("📋 Kayıtlı Mevcut Reçete Oranları Özet Görünümü")

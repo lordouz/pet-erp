@@ -66,7 +66,7 @@ def malzeme_depo_stok_getir(malzeme_adi, depo_adi):
     harcanan_toplam = st.session_state.hammadde_kullanilan_toplam.get(anahtar, 0.0)
     return max(0.0, giren_toplam - harcanan_toplam)
 
-# --- LINE 129 VE TARİH CHATALARI GİDERİLMİŞ YENİ EXCEL MOTORU ---
+# --- KANITLI DÜZELTME: AttributeError (sheetView) HATASI ÇÖZÜLEN RAPOR MOTORU ---
 def endustriyel_excel_rapor_olustur(bas_tarih, bit_tarih):
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
     from openpyxl.utils import get_column_letter
@@ -78,7 +78,6 @@ def endustriyel_excel_rapor_olustur(bas_tarih, bit_tarih):
     df_mamul = pd.DataFrame(st.session_state.mamul_depo) if st.session_state.mamul_depo else pd.DataFrame(columns=["Üretim Tarihi", "Ürün", "Üretim LOT / Silo", "Miktar"])
     df_sevk = pd.DataFrame(st.session_state.sevkiyat_depo) if st.session_state.sevkiyat_depo else pd.DataFrame(columns=["Sevkiyat Tarihi", "Müşteri", "İrsaliye No", "Plaka", "Ürün", "Sevk Edilen LOT", "Sevk Miktarı (Kg)"])
     
-    # %100 Kararlı Tarih Süzme İstasyonu
     def tarih_filtrele_ve_temizle(df, tarih_kolonu):
         if df.empty or tarih_kolonu not in df.columns: return df
         df_copy = df.copy()
@@ -114,7 +113,6 @@ def endustriyel_excel_rapor_olustur(bas_tarih, bit_tarih):
         f_mamul_depo.to_excel(writer, index=False, sheet_name='Mamul Üretim Giriş Detay')
         f_sevk_hareket.to_excel(writer, index=False, sheet_name='Müşteri Sevkiyat İrsaliye Detay')
         
-        # Tasarım Nesneleri
         header_font = Font(name='Segoe UI', size=11, bold=True, color='FFFFFF')
         header_fill = PatternFill(start_color='1F4E78', end_color='1F4E78', fill_type='solid')
         data_font = Font(name='Segoe UI', size=10)
@@ -122,30 +120,24 @@ def endustriyel_excel_rapor_olustur(bas_tarih, bit_tarih):
         thin_side = Side(border_style="thin", color="D9D9D9")
         thin_border = Border(left=thin_side, right=thin_side, top=thin_side, bottom=thin_side)
         
-        # ÇÖZÜM: openpyxl döngü kurgusu tamamen izole satırlara bölündü
         for sheet_name in writer.sheets:
             ws = writer.sheets[sheet_name]
-            ws.views.sheetView.showGridLines = True
             
-            # Sadece Başlık Satırını Biçimlendir (1. Satır)
+            # GÜNCELLEME: Çökmeye neden olan eski '.views.sheetView' komutu yerine '.sheet_view' entegre edildi
+            ws.sheet_view.showGridLines = True
+            
             for col_idx in range(1, ws.max_column + 1):
                 cell = ws.cell(row=1, column=col_idx)
-                cell.font = header_font
-                cell.fill = header_fill
-                cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
-            ws.row_dimensions[1].height = 28
+                cell.font = header_font; cell.fill = header_fill; cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+            ws.row_dimensions.height = 28
             
-            # Sadece Veri Satırlarını Biçimlendir (2. Satırdan Son Satıra Kadar)
             if ws.max_row >= 2:
                 for row_idx in range(2, ws.max_row + 1):
                     ws.row_dimensions[row_idx].height = 20
                     for col_idx in range(1, ws.max_column + 1):
                         cell = ws.cell(row=row_idx, column=col_idx)
-                        cell.font = data_font
-                        cell.border = thin_border
-                        
-                        if row_idx % 2 == 0: 
-                            cell.fill = zebra_fill
+                        cell.font = data_font; cell.border = thin_border
+                        if row_idx % 2 == 0: cell.fill = zebra_fill
                         
                         col_name = str(ws.cell(row=1, column=col_idx).value)
                         val = cell.value
@@ -158,7 +150,6 @@ def endustriyel_excel_rapor_olustur(bas_tarih, bit_tarih):
                         else:
                             cell.alignment = Alignment(horizontal='left', vertical='center')
             
-            # Sütun Genişliği Ayarlayıcı
             for col in ws.columns:
                 max_len = max(len(str(cell.value or '')) for cell in col)
                 col_letter = get_column_letter(col.column)
@@ -412,10 +403,10 @@ elif sayfa == "🏭 3. Üretim Emri & Giriş Sayfası":
                         })
                     
                     if hedef_tur == "Ara Mamul Reçetesi":
-                        st.session_state.hammadde_depo.append({"Giriş Tarihi": datetime.now().strftime("%Y-%m-%d"), "Depo": kaynak_depo_secim, "Kategori": "Ara Mamul", "Hammadde": secilen_recete_adi, "LOT No": u_lot, "Miktar": hedef_miktar, "Birim": "Kg"})
+                        st.session_state.hammadde_depo.append({"Giriş Tarihi": datetime.now().strftime("%Y-%m-%d"), "Depo": kaynak_depo_secim, "Kategori": "Ara Mamul", "Hammadde": secilen_recete_adi, "LOT No": u_lot, "Miktar": Model Hacmi if 'Model Hacmi' in locals() else hedef_miktar, "Birim": "Kg"})
                     else:
                         st.session_state.mamul_depo.append({"Üretim Tarihi": current_date_str, "Ürün": secilen_recete_adi, "Üretim LOT / Silo": u_lot, "Miktar": hedef_miktar})
-                    st.success("🎉 Üretim tamamlandı! Hammaddeler başarıyla {kaynak_depo_secim} stoklarından düşüldü."); st.rerun()
+                    st.success(f"🎉 Üretim tamamlandı! Hammaddeler başarıyla {kaynak_depo_secim} stoklarından düşüldü."); st.rerun()
 
 # ==========================================
 # SAYFA 4: MÜŞTERİ SEVKİYAT VE İRSALİYE ÇIKIŞ SAYFASI

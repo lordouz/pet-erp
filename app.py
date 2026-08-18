@@ -6,7 +6,7 @@ import io
 # 1. SAYFA VE TASARIM AYARLARI
 st.set_page_config(page_title="PET Resin Komple ERP v2.6", layout="wide")
 
-# MERKEZİ STOK KARTLARI VE BİRİMLERİ HAFIZASI (Tam İstediğiniz Hammadde Kalemleri Sabitlendi)
+# MERKEZİ STOK KARTLARI VE BİRİMLERİ HAFIZASI (Tam İstediğiniz Kimyasal Kalemleri Sabitlendi)
 if 'stok_kartlari' not in st.session_state:
     st.session_state.stok_kartlari = {
         "Hammadde": [
@@ -16,11 +16,10 @@ if 'stok_kartlari' not in st.session_state:
             {"Ad": "DEŞE KIRIĞI", "Birim": "Kg"}, {"Ad": "KİRLİ MEG", "Birim": "Kg"}
         ],
         "Yardımcı Kimyasal": [
-            {"Ad": "ANTİMON TRİOKSİT", "Birim": "Kg"}, {"Ad": "FOSFORİK ASİT", "Birim": "Kg"},
-            {"Ad": "KIRMIZI BOYA", "Birim": "Kg"}, {"Ad": "MAVİ BOYA", "Birim": "Kg"},
-            {"Ad": "REHEAT", "Birim": "Kg"}, {"Ad": "TYZOR AC 422", "Birim": "Kg"},
-            {"Ad": "TALK", "Birim": "Kg"}, {"Ad": "TABLET TUZ", "Birim": "Kg"},
-            {"Ad": "TERMEKS ( Destile )", "Birim": "Kg"}
+            {"Ad": "SAF DEG", "Birim": "Kg"}, {"Ad": "ANTİMON TRİOKSİT", "Birim": "Kg"}, 
+            {"Ad": "FOSFORİK ASİT", "Birim": "Kg"}, {"Ad": "KIRMIZI BOYA", "Birim": "Kg"}, 
+            {"Ad": "MAVİ BOYA", "Birim": "Kg"}, {"Ad": "REHEAT", "Birim": "Kg"}, 
+            {"Ad": "TYZOR AC 422", "Birim": "Kg"}, {"Ad": "TALK", "Birim": "Kg"}
         ],
         "Ambalaj": [
             {"Ad": "PET Big Bag Çuval", "Birim": "Adet"}, {"Ad": "Ahşap Palet", "Birim": "Adet"}

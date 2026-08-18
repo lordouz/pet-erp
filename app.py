@@ -66,29 +66,30 @@ def malzeme_depo_stok_getir(malzeme_adi, depo_adi):
     harcanan_toplam = st.session_state.hammadde_kullanilan_toplam.get(anahtar, 0.0)
     return max(0.0, giren_toplam - harcanan_toplam)
 
+# --- %100 KORUMALI VE PROFESYONEL EXCEL RAPOR MOTORU ---
 def endustriyel_excel_rapor_olustur(bas_tarih, bit_tarih):
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
     from openpyxl.utils import get_column_letter
 
     buffer = io.BytesIO()
     
+    # Varsayılan kolonlarla şablon DataFrame'ler (Tarih filtreleme çökmesini engeller)
     df_depo = pd.DataFrame(st.session_state.hammadde_depo) if st.session_state.hammadde_depo else pd.DataFrame(columns=["Giriş Tarihi", "Depo", "Kategori", "Hammadde", "LOT No", "Miktar", "Birim"])
     df_harcama = pd.DataFrame(st.session_state.uretim_harcamalari_log) if st.session_state.uretim_harcamalari_log else pd.DataFrame(columns=["Tarih", "Harcanan Depo", "Üretim LOT", "Harcanan Malzeme", "Miktar", "Birim"])
     df_mamul = pd.DataFrame(st.session_state.mamul_depo) if st.session_state.mamul_depo else pd.DataFrame(columns=["Üretim Tarihi", "Ürün", "Üretim LOT / Silo", "Miktar"])
     df_sevk = pd.DataFrame(st.session_state.sevkiyat_depo) if st.session_state.sevkiyat_depo else pd.DataFrame(columns=["Sevkiyat Tarihi", "Müşteri", "İrsaliye No", "Plaka", "Ürün", "Sevk Edilen LOT", "Sevk Miktarı (Kg)"])
     
+    # Hata Geçirmez Vektörel Tarih Filtreleme Mekanizması
     def tarih_filtrele_ve_temizle(df, tarih_kolonu):
-        if df.empty or tarih_kolonu not in df.columns: return df
-        df_copy = df.copy()
-        try:
-            temp_datetime = pd.to_datetime(df_copy[tarih_kolonu], errors='coerce')
-            df_copy["temp_date_obj"] = temp_datetime.dt.date
-            filtered_df = df_copy[(df_copy["temp_date_obj"] >= bas_tarih) & (df_copy["temp_date_obj"] <= bit_tarih)]
-            if "temp_date_obj" in filtered_df.columns: 
-                filtered_df = filtered_df.drop(columns=["temp_date_obj"])
-            return filtered_df
-        except Exception:
+        if df.empty or tarih_kolonu not in df.columns: 
             return df
+        df_copy = df.copy()
+        # Tarih hücresini stringe çevirip ilk 10 hanesini (YYYY-MM-DD) alarak zaman damgasına dönüştürür
+        df_copy["temp_date_convert"] = pd.to_datetime(df_copy[tarih_kolonu].astype(str).str.slice(0, 10), errors='coerce').dt.date
+        filtered_df = df_copy[(df_copy["temp_date_convert"] >= bas_tarih) & (df_copy["temp_date_convert"] <= bit_tarih)]
+        
+        bırakılacaklar = [c for c in filtered_df.columns if c != "temp_date_convert"]
+        return filtered_df[bırakılacaklar]
 
     f_depo_giris = tarih_filtrele_ve_temizle(df_depo, "Giriş Tarihi")
     f_uretim_harcama = tarih_filtrele_ve_temizle(df_harcama, "Tarih")
@@ -115,21 +116,26 @@ def endustriyel_excel_rapor_olustur(bas_tarih, bit_tarih):
         f_mamul_depo.to_excel(writer, index=False, sheet_name='Mamul Üretim Giriş Detay')
         f_sevk_hareket.to_excel(writer, index=False, sheet_name='Müşteri Sevkiyat İrsaliye Detay')
         
+        # Endüstriyel Tasarım Paleti
         header_font = Font(name='Segoe UI', size=11, bold=True, color='FFFFFF')
-        header_fill = PatternFill(start_color='1F4E78', end_color='1F4E78', fill_type='solid')
+        header_fill = PatternFill(start_color='1F4E78', end_color='1F4E78', fill_type='solid') # Safir Mavi
         data_font = Font(name='Segoe UI', size=10)
-        zebra_fill = PatternFill(start_color='F2F4F7', end_color='F2F4F7', fill_type='solid')
+        zebra_fill = PatternFill(start_color='F2F4F7', end_color='F2F4F7', fill_type='solid') # Mat Gri
         thin_side = Side(border_style="thin", color="D9D9D9")
         thin_border = Border(left=thin_side, right=thin_side, top=thin_side, bottom=thin_side)
         
         for sheet_name in writer.sheets:
             ws = writer.sheets[sheet_name]
             ws.views.sheetView.showGridLines = True
+            
+            # Başlık stil atamaları
             for col_idx in range(1, ws.max_column + 1):
                 cell = ws.cell(row=1, column=col_idx)
-                cell.font = header_font; cell.fill = header_fill; cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
-            ws.row_dimensions.height = 28
+                cell.font = header_font; cell.fill = header_fill
+                cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+            ws.row_dimensions[1].height = 28
             
+            # Veri hücreleri hizalama ve finansal format döngüsü
             for row_idx in range(2, ws.max_row + 1):
                 ws.row_dimensions[row_idx].height = 20
                 for col_idx in range(1, ws.max_column + 1):
@@ -139,13 +145,16 @@ def endustriyel_excel_rapor_olustur(bas_tarih, bit_tarih):
                     
                     val = cell.value
                     col_name = str(ws.cell(row=1, column=col_idx).value)
+                    
                     if isinstance(val, (int, float)):
                         cell.alignment = Alignment(horizontal='right', vertical='center')
                         cell.number_format = '#,##0.000000' if "Oran" in col_name else '#,##0.0'
                     elif any(k in col_name for k in ["LOT", "No", "Plaka", "Tarih", "Depo"]):
                         cell.alignment = Alignment(horizontal='center', vertical='center')
-                    else: cell.alignment = Alignment(horizontal='left', vertical='center')
-                    
+                    else:
+                        cell.alignment = Alignment(horizontal='left', vertical='center')
+                        
+            # Akıllı otomatik sütun genişliği genişletme
             for col in ws.columns:
                 max_len = max(len(str(cell.value or '')) for cell in col)
                 col_letter = get_column_letter(col.column)
@@ -261,7 +270,7 @@ elif sayfa == "📈 📊 Fabrika Raporlar Sayfası":
         excel_dosyası = endustriyel_excel_rapor_olustur(bas_secim, bit_secim)
         st.download_button(label="📊 Fabrika Konsolide Profesyonel Raporu İndir (.XLSX)", data=excel_dosyası, file_name=f"Fabrika_Kurumsal_Rapor_{bas_secim}_to_{bit_secim}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 # ==========================================
-# SAYFA 0: BİRİMLİ STOK KARTI TANIMLAMA (TIRNAK HATASI TAMAMEN GİDERİLDİ)
+# SAYFA 0: BİRİMLİ STOK KARTI TANIMLAMA
 # ==========================================
 elif sayfa == "🗂️ 0. Stok Kartı Tanımlama Sayfası":
     st.header("🗂️ Fabrika Malzeme / Stok Kartı Tanımlama")
@@ -275,13 +284,11 @@ elif sayfa == "🗂️ 0. Stok Kartı Tanımlama Sayfası":
             
     st.subheader("📋 Sistemde Kayıtlı Kart Listesi")
     for k, v in st.session_state.stok_kartlari.items():
-        # KANITLI DÜZELTME: Hata veren liste içi f-string kaçış yapısı temiz, standart döngüye çevrildi
         gosterim_listesi = []
         for malzeme_ornek in v:
             m_ad = malzeme_ornek["Ad"]
             m_birim = malzeme_ornek["Birim"]
             gosterim_listesi.append(m_ad + " (" + m_birim + ")")
-        
         st.write(f"**{k}:** {', '.join(gosterim_listesi)}")
 
 # ==========================================
@@ -425,7 +432,7 @@ elif sayfa == "🚚 4. Müşteri Sevkiyat Sayfası":
         secilen_sevk_lot = st.selectbox("Sevk Edilecek Üretim LOT / Silo Seçin", uygun_lotlar)
         
         l_toplam_uretim = df_mamul[(df_mamul["Ürün"] == secilen_sevk_urun) & (df_mamul["Üretim LOT / Silo"] == secilen_sevk_lot)]["Miktar"].sum()
-        l_toplam_sevk = df_sevk_matris[(df_sevk_matris["Ürün"] == secilen_sevk_urun) & (df_sevk_matris["Sevk Edilen LOT"] == lot_no)]["Sevk Miktarı (Kg)"].sum() if ('lot_no' in locals() and not df_sevk_matris.empty) else (df_sevk_matris[(df_sevk_matris["Ürün"] == secilen_sevk_urun) & (df_sevk_matris["Sevk Edilen LOT"] == secilen_sevk_lot)]["Sevk Miktarı (Kg)"].sum() if not df_sevk_matris.empty else 0.0)
+        l_toplam_sevk = df_sevk_matris[(df_sevk_matris["Ürün"] == secilen_sevk_urun) & (df_sevk_matris["Sevk Edilen LOT"] == secilen_sevk_lot)]["Sevk Miktarı (Kg)"].sum() if not df_sevk_matris.empty else 0.0
         
         mevcut_lot_bakiyesi = max(0.0, l_toplam_uretim - l_toplam_sevk)
         st.info(f"💡 Seçilen {secilen_sevk_lot} lot numaralı ürünün kullanılabilir net bakiyesi: **{mevcut_lot_bakiyesi:,.1f} Kg**")

@@ -6,7 +6,7 @@ import io
 # 1. SAYFA VE TASARIM AYARLARI
 st.set_page_config(page_title="PET Resin Komple ERP v2.6", layout="wide")
 
-# MERKEZİ STOK KARTLARI VE BİRİMLERİ HAFIZASI (Tam İstediğiniz Kimyasal Kalemleri Sabitlendi)
+# MERKEZİ STOK KARTLARI VE BİRİMLERİ HAFIZASI (Ambalaj Kalemleri Tam İstediğiniz Gibi Sabitlendi)
 if 'stok_kartlari' not in st.session_state:
     st.session_state.stok_kartlari = {
         "Hammadde": [
@@ -22,7 +22,17 @@ if 'stok_kartlari' not in st.session_state:
             {"Ad": "TYZOR AC 422", "Birim": "Kg"}, {"Ad": "TALK", "Birim": "Kg"}
         ],
         "Ambalaj": [
-            {"Ad": "PET Big Bag Çuval", "Birim": "Adet"}, {"Ad": "Ahşap Palet", "Birim": "Adet"}
+            {"Ad": "1150 kg Virgin ürün BİG-BEG (Beyaz Kulak )", "Birim": "Adet"},
+            {"Ad": "1100 kg Virgin ürün BİG-BEG (Beyaz Kulak )", "Birim": "Adet"},
+            {"Ad": "1150 kg Baskısız MAVİ Kulak BİG-BEG", "Birim": "Adet"},
+            {"Ad": "1150 kg Baskısız BEYAZ Kulak BİG-BEG", "Birim": "Adet"},
+            {"Ad": "1150 kg İç astarlı  r-PET BİG - BEG (Yeşil  Kulak )", "Birim": "Adet"},
+            {"Ad": "1100 kg r-PET BİG - BEG (Yeşil Kulak )", "Birim": "Adet"},
+            {"Ad": "1150 kg r-PET BİG - BEG (Yeşil Kulak )", "Birim": "Adet"},
+            {"Ad": "1100 Yeşil Kulak Virgin baskılı", "Birim": "Adet"},
+            {"Ad": "Yurtiçi Standart Palet", "Birim": "Adet"},
+            {"Ad": "Konteyner ;İhracat Palet'i", "Birim": "Adet"},
+            {"Ad": "Karton (Seperatör)", "Birim": "Adet"}
         ],
         "Ara Mamul": [
             {"Ad": "Standart Amorf Chips", "Birim": "Kg"}, {"Ad": "HTM", "Birim": "Kg"}
@@ -37,7 +47,7 @@ if 'hammadde_depo' not in st.session_state:
         {"Giriş Tarihi": "2026-08-15", "Depo": "Depo 1", "Kategori": "Hammadde", "Hammadde": "PTA", "LOT No": "PTA-LOT-001", "Miktar": 100000.0, "Birim": "Kg"},
         {"Giriş Tarihi": "2026-08-15", "Depo": "Depo 2", "Kategori": "Hammadde", "Hammadde": "SAF MEG", "LOT No": "MEG-LOT-001", "Miktar": 50000.0, "Birim": "Kg"},
         {"Giriş Tarihi": "2026-08-15", "Depo": "Depo 1", "Kategori": "Yardımcı Kimyasal", "Hammadde": "ANTİMON TRİOKSİT", "LOT No": "ANT-LOT-001", "Miktar": 5000.0, "Birim": "Kg"},
-        {"Giriş Tarihi": "2026-08-15", "Depo": "Depo 3", "Kategori": "Ambalaj", "Hammadde": "PET Big Bag Çuval", "LOT No": "BB-LOT-01", "Miktar": 500.0, "Birim": "Adet"},
+        {"Giriş Tarihi": "2026-08-15", "Depo": "Depo 3", "Kategori": "Ambalaj", "Hammadde": "1150 kg Virgin ürün BİG-BEG (Beyaz Kulak )", "LOT No": "BB-LOT-01", "Miktar": 500.0, "Birim": "Adet"},
         {"Giriş Tarihi": "2026-08-15", "Depo": "Depo 2", "Kategori": "Ara Mamul", "Hammadde": "Standart Amorf Chips", "LOT No": "AMF-LOT-00", "Miktar": 10000.0, "Birim": "Kg"}
     ]
 
